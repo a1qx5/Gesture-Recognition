@@ -30,6 +30,9 @@ class GestureDataCollector:
         self.samples = []
         self.sample_counts = {name: 0 for name in self.gesture_names}
         
+        # Load existing data counts from all CSV files
+        self.existing_counts = self.load_existing_counts()
+        
         # Auto-capture state
         self.auto_capture_active = False
         self.auto_capture_interval = 0.2  # Capture every 200ms during auto-capture
@@ -67,11 +70,39 @@ class GestureDataCollector:
         with open(gesture_map_path, 'r') as f:
             return json.load(f)
     
+    def load_existing_counts(self) -> dict:
+        """Load existing sample counts from all CSV files in data/raw/."""
+        counts = {name: 0 for name in self.gesture_names}
+        raw_data_dir = Path(__file__).parent.parent / "data" / "raw"
+        
+        if not raw_data_dir.exists():
+            return counts
+        
+        # Find all CSV files
+        csv_files = list(raw_data_dir.glob("gestures_*.csv"))
+        
+        if not csv_files:
+            return counts
+        
+        # Load and count samples from each file
+        for csv_file in csv_files:
+            try:
+                df = pd.read_csv(csv_file)
+                # Count by gesture_id and map to gesture_name
+                for gesture_id, count in df['gesture_id'].value_counts().items():
+                    gesture_name = self.gesture_map.get(str(gesture_id))
+                    if gesture_name and gesture_name in counts:
+                        counts[gesture_name] += count
+            except Exception as e:
+                print(f"Warning: Could not load {csv_file.name}: {e}")
+        
+        return counts
+    
     def setup_gui(self):
         """Set up tkinter GUI for gesture selection."""
         self.root = tk.Tk()
         self.root.title("Gesture Data Collector - Controls")
-        self.root.geometry("400x350+20+50")  # Position at top-left of screen
+        self.root.geometry("450x400+20+50")  # Larger to fit counts display
         
         # Title
         title_label = tk.Label(
@@ -166,11 +197,17 @@ while you hold or vary the gesture slightly.
         
     def get_counts_text(self) -> str:
         """Generate text showing sample counts for each gesture."""
-        lines = ["Sample Counts:"]
+        lines = ["Sample Counts (Existing + New):"]
+        total_existing = sum(self.existing_counts.values())
+        total_new = sum(self.sample_counts.values())
+        
         for name in self.gesture_names:
-            count = self.sample_counts[name]
-            lines.append(f"  {name}: {count}")
-        lines.append(f"\nTotal: {sum(self.sample_counts.values())}")
+            existing = self.existing_counts[name]
+            new = self.sample_counts[name]
+            total = existing + new
+            lines.append(f"  {name}: {total} ({existing} + {new})")
+        
+        lines.append(f"\nTotal: {total_existing + total_new} ({total_existing} + {total_new})")
         return "\n".join(lines)
     
     def update_counts_display(self):
@@ -273,9 +310,12 @@ while you hold or vary the gesture slightly.
         
         # Sample count
         y_offset += line_height
+        current_gesture_total = self.existing_counts[self.current_gesture_name] + self.sample_counts[self.current_gesture_name]
+        session_total = sum(self.sample_counts.values())
+        overall_total = sum(self.existing_counts.values()) + session_total
         cv2.putText(
             frame,
-            f"Samples: {self.sample_counts[self.current_gesture_name]} (Total: {sum(self.sample_counts.values())})",
+            f"Current Gesture: {current_gesture_total} | Session: {session_total} | Total: {overall_total}",
             (20, y_offset),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
