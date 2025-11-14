@@ -71,30 +71,25 @@ class GestureDataCollector:
             return json.load(f)
     
     def load_existing_counts(self) -> dict:
-        """Load existing sample counts from all CSV files in data/raw/."""
+        """Load existing sample counts from the main CSV file."""
         counts = {name: 0 for name in self.gesture_names}
-        raw_data_dir = Path(__file__).parent.parent / "data" / "raw"
+        data_dir = Path(__file__).parent.parent / "data"
+        main_csv = data_dir / "gestures_data.csv"
         
-        if not raw_data_dir.exists():
+        # Check if main CSV exists
+        if not main_csv.exists():
             return counts
         
-        # Find all CSV files
-        csv_files = list(raw_data_dir.glob("gestures_*.csv"))
-        
-        if not csv_files:
-            return counts
-        
-        # Load and count samples from each file
-        for csv_file in csv_files:
-            try:
-                df = pd.read_csv(csv_file)
-                # Count by gesture_id and map to gesture_name
-                for gesture_id, count in df['gesture_id'].value_counts().items():
-                    gesture_name = self.gesture_map.get(str(gesture_id))
-                    if gesture_name and gesture_name in counts:
-                        counts[gesture_name] += count
-            except Exception as e:
-                print(f"Warning: Could not load {csv_file.name}: {e}")
+        # Load and count samples
+        try:
+            df = pd.read_csv(main_csv)
+            # Count by gesture_id and map to gesture_name
+            for gesture_id, count in df['gesture_id'].value_counts().items():
+                gesture_name = self.gesture_map.get(str(gesture_id))
+                if gesture_name and gesture_name in counts:
+                    counts[gesture_name] += count
+        except Exception as e:
+            print(f"Warning: Could not load {main_csv.name}: {e}")
         
         return counts
     
@@ -368,27 +363,39 @@ while you hold or vary the gesture slightly.
         return frame
     
     def save_data(self):
-        """Save collected samples to CSV file."""
+        """Append collected samples to the main CSV file."""
         if not self.samples:
             print("No samples to save.")
             return
         
-        # Create DataFrame
-        df = pd.DataFrame(self.samples)
+        # Create DataFrame from new samples
+        new_df = pd.DataFrame(self.samples)
         
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = Path(__file__).parent.parent / "data" / "raw"
-        output_path = output_dir / f"gestures_{timestamp}.csv"
+        # Path to main CSV file
+        data_dir = Path(__file__).parent.parent / "data"
+        main_csv = data_dir / "gestures_data.csv"
         
-        # Save to CSV
-        df.to_csv(output_path, index=False)
-        print(f"\n{'='*60}")
-        print(f"Data saved to: {output_path}")
-        print(f"Total samples: {len(self.samples)}")
-        print(f"\nSamples per gesture:")
+        # Append to existing file or create new one
+        if main_csv.exists():
+            # Append without header
+            new_df.to_csv(main_csv, mode='a', header=False, index=False)
+            print(f"\n{'='*60}")
+            print(f"Data appended to: {main_csv}")
+        else:
+            # Create new file with header
+            new_df.to_csv(main_csv, index=False)
+            print(f"\n{'='*60}")
+            print(f"New data file created: {main_csv}")
+        
+        print(f"Samples added this session: {len(self.samples)}")
+        print(f"\nBreakdown:")
         for name, count in self.sample_counts.items():
-            print(f"  {name}: {count}")
+            if count > 0:
+                print(f"  {name}: {count}")
+        
+        # Show total count in file
+        total_df = pd.read_csv(main_csv)
+        print(f"\nTotal samples in file: {len(total_df)}")
         print(f"{'='*60}")
     
     def quit_application(self):

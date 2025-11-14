@@ -52,40 +52,33 @@ class GestureModelTrainer:
         
     def load_and_merge_data(self):
         """
-        Load all CSV files from data/raw/ and merge them into a single dataset.
+        Load data from the main gestures_data.csv file.
         
         Returns:
-            pd.DataFrame: Combined dataset
+            pd.DataFrame: Dataset
         """
         print("\n" + "="*60)
-        print("STEP 1: Loading and Merging Data")
+        print("STEP 1: Loading Data")
         print("="*60)
         
-        csv_files = list(self.raw_dir.glob("gestures_*.csv"))
+        main_csv = self.data_dir / "gestures_data.csv"
         
-        if not csv_files:
-            raise FileNotFoundError(f"No CSV files found in {self.raw_dir}")
+        if not main_csv.exists():
+            raise FileNotFoundError(f"Main data file not found: {main_csv}")
         
-        print(f"Found {len(csv_files)} CSV file(s):")
-        for csv_file in csv_files:
-            print(f"  - {csv_file.name}")
+        print(f"Loading from: {main_csv.name}")
         
-        # Load and concatenate all CSV files
-        dataframes = []
-        for csv_file in csv_files:
-            df = pd.read_csv(csv_file)
-            dataframes.append(df)
+        # Load the main CSV file
+        df = pd.read_csv(main_csv)
         
-        combined_df = pd.concat(dataframes, ignore_index=True)
-        
-        print(f"\nTotal samples loaded: {len(combined_df)}")
+        print(f"\nTotal samples loaded: {len(df)}")
         print(f"\nSamples per gesture:")
-        gesture_counts = combined_df['gesture_id'].value_counts().sort_index()
+        gesture_counts = df['gesture_id'].value_counts().sort_index()
         for gesture_id, count in gesture_counts.items():
             gesture_name = self.gesture_map.get(str(gesture_id), "Unknown")
             print(f"  {gesture_name:15} (ID {gesture_id}): {count:4} samples")
         
-        return combined_df
+        return df
     
     def prepare_features_and_labels(self, df):
         """
