@@ -16,8 +16,61 @@ import pickle
 import json
 from pathlib import Path
 import time
+import pyautogui
 
 from normalize import normalize_landmarks
+
+
+class GestureActionTrigger:
+    """
+    Hybrid trigger system: detects when a gesture should trigger an action.
+    Uses minimum dwell time to prevent false positives, triggers only once per hold.
+    """
+    
+    def __init__(self, min_dwell_frames=5):
+        """
+        Initialize action trigger.
+        
+        Args:
+            min_dwell_frames: Minimum frames to hold gesture before triggering (default: 5 ≈ 0.15s at 30fps)
+        """
+        self.min_dwell_frames = min_dwell_frames
+        self.current_gesture = None
+        self.frame_count = 0
+        self.triggered_this_gesture = False
+        
+    def update(self, detected_gesture):
+        """
+        Update trigger state with current gesture.
+        
+        Args:
+            detected_gesture: The gesture detected this frame
+            
+        Returns:
+            str or None: Gesture name if action should trigger, None otherwise
+        """
+        # Ignore non-actionable states
+        if detected_gesture in ["null", "No hand detected", "Invalid (scale too small)"]:
+            self.current_gesture = None
+            self.frame_count = 0
+            self.triggered_this_gesture = False
+            return None
+        
+        # Same gesture as previous frame
+        if detected_gesture == self.current_gesture:
+            self.frame_count += 1
+            
+            # Trigger only once when dwell threshold first met
+            if self.frame_count == self.min_dwell_frames and not self.triggered_this_gesture:
+                self.triggered_this_gesture = True
+                return detected_gesture  # TRIGGER ACTION
+        else:
+            # New gesture detected - reset state
+            self.current_gesture = detected_gesture
+            self.frame_count = 0
+            self.triggered_this_gesture = False
+        
+        return None
 
 
 class RealtimeGestureRecognizer:
@@ -67,6 +120,11 @@ class RealtimeGestureRecognizer:
         # For temporal smoothing (optional - reduces flicker)
         self.prediction_history = []
         self.history_size = 5  # Average over last 5 frames
+        
+        # Action triggering system
+        self.action_trigger = GestureActionTrigger(min_dwell_frames=5)
+        self.last_action = None
+        self.action_display_frames = 0  # Frames to display action feedback
         
     def predict_gesture(self, hand_landmarks):
         """
@@ -131,6 +189,29 @@ class RealtimeGestureRecognizer:
         
         return gesture_name
     
+    def handle_action(self, gesture):
+        """
+        Execute action based on triggered gesture.
+        Clicks at current cursor position (system-level, works across all apps).
+        
+        Args:
+            gesture: Name of the gesture that triggered the action
+        """
+        if gesture == "pinch":
+            # Click at current cursor position
+            pyautogui.click()
+            self.last_action = "LEFT CLICK"
+            self.action_display_frames = 30  # Show feedback for ~1 second
+            print(f"✓ LEFT CLICK executed (pinch gesture)")
+        
+        # Add more gesture → action mappings here:
+        # elif gesture == "fist":
+        #     pyautogui.click(button='right')
+        #     self.last_action = "RIGHT CLICK"
+        # elif gesture == "thumbs_up":
+        #     pyautogui.scroll(100)  # Scroll up
+        #     self.last_action = "SCROLL UP"
+    
     def draw_ui(self, frame, hand_landmarks):
         """
         Draw UI overlay on frame showing prediction and info.
@@ -193,6 +274,23 @@ class RealtimeGestureRecognizer:
                 2
             )
         
+        # Display action feedback (when action was just triggered)
+        if self.action_display_frames > 0:
+            action_text = f"ACTION: {self.last_action}"
+            # Pulsing effect based on remaining frames
+            alpha = min(1.0, self.action_display_frames / 15.0)
+            color_intensity = int(255 * alpha)
+            cv2.putText(
+                frame,
+                action_text,
+                (20, 115),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, color_intensity, 0),  # Green, fading
+                2
+            )
+            self.action_display_frames -= 1
+        
         # Display FPS in top-right corner
         fps_text = f"FPS: {self.fps:.1f}"
         text_size = cv2.getTextSize(fps_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
@@ -207,7 +305,7 @@ class RealtimeGestureRecognizer:
         )
         
         # Instructions at bottom
-        instructions = "Press 'Q' or 'ESC' to quit | 'S' to toggle smoothing"
+        instructions = "Press 'Q' or 'ESC' to quit | 'S' to toggle smoothing | PINCH = Click"
         cv2.putText(
             frame,
             instructions,
@@ -271,6 +369,11 @@ class RealtimeGestureRecognizer:
                     
                     self.current_gesture = gesture
                     self.prediction_confidence = confidence
+                    
+                    # Check if gesture should trigger an action
+                    triggered = self.action_trigger.update(gesture)
+                    if triggered:
+                        self.handle_action(triggered)
                 else:
                     self.current_gesture = gesture  # "Invalid (scale too small)"
                     self.prediction_confidence = 0.0
@@ -278,6 +381,7 @@ class RealtimeGestureRecognizer:
                 self.current_gesture = "No hand detected"
                 self.prediction_confidence = 0.0
                 self.prediction_history = []  # Clear history when hand disappears
+                self.action_trigger.update("No hand detected")  # Reset trigger state
             
             # Calculate FPS
             self.calculate_fps()
