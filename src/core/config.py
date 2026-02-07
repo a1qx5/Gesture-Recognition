@@ -31,6 +31,7 @@ class AppConfig:
     CAMERA_INDEX: int = 0
     CAMERA_WIDTH: int = 1280
     CAMERA_HEIGHT: int = 720
+    CAMERA_FPS: int = 90
 
     # ========== MediaPipe Settings ==========
     MIN_DETECTION_CONFIDENCE: float = 0.7

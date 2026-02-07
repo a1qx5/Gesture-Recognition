@@ -59,6 +59,7 @@ class CompactModeWindow:
         self.cap = cv2.VideoCapture(config.CAMERA_INDEX)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.CAMERA_WIDTH)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.CAMERA_HEIGHT)
+        self.cap.set(cv2.CAP_PROP_FPS, config.CAMERA_FPS)
 
         # State
         self.current_gesture = "No hand detected"
