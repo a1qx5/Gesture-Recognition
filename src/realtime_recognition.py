@@ -18,7 +18,7 @@ from pathlib import Path
 import time
 import pyautogui
 
-from normalize import normalize_landmarks
+from utils.normalize import normalize_landmarks
 
 
 class GestureActionTrigger:

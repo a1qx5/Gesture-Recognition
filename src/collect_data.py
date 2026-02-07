@@ -15,7 +15,7 @@ from pathlib import Path
 import threading
 import time
 
-from normalize import normalize_landmarks, get_average_confidence
+from utils.normalize import normalize_landmarks, get_average_confidence
 
 
 class GestureDataCollector:
