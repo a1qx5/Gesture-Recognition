@@ -131,8 +131,9 @@ class TestingModeWindow:
             # Display frame
             cv2.imshow(self.window_name, frame)
 
-            # Handle keyboard input
-            key = cv2.waitKey(1) & 0xFF
+            # Handle keyboard input (with FPS limiting)
+            wait_time = max(1, int(1000 / self.config.PROCESSING_FPS_LIMIT))
+            key = cv2.waitKey(wait_time) & 0xFF
 
             if key == ord('q') or key == 27:  # Q or ESC
                 break

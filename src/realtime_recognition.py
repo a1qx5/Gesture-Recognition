@@ -197,12 +197,12 @@ class RealtimeGestureRecognizer:
         Args:
             gesture: Name of the gesture that triggered the action
         """
-        if gesture == "pinch":
+        if gesture == "L_shape":
             # Click at current cursor position
             pyautogui.click()
             self.last_action = "LEFT CLICK"
             self.action_display_frames = 30  # Show feedback for ~1 second
-            print(f"✓ LEFT CLICK executed (pinch gesture)")
+            print(f"✓ LEFT CLICK executed (L_shape gesture)")
         
         # Add more gesture → action mappings here:
         # elif gesture == "fist":
@@ -305,7 +305,7 @@ class RealtimeGestureRecognizer:
         )
         
         # Instructions at bottom
-        instructions = "Press 'Q' or 'ESC' to quit | 'S' to toggle smoothing | PINCH = Click"
+        instructions = "Press 'Q' or 'ESC' to quit | 'S' to toggle smoothing | L_SHAPE = Click"
         cv2.putText(
             frame,
             instructions,

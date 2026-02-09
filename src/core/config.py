@@ -44,13 +44,20 @@ class AppConfig:
     # ========== Action Settings ==========
     ACTION_DWELL_FRAMES: int = 5              # Frames to hold gesture before triggering (~0.15s at 30fps)
 
+    # ========== Cursor Control Settings ==========
+    CURSOR_SENSITIVITY: float = 1.5           # Movement gain factor
+    CURSOR_SMOOTHING: float = 0             # Exponential smoothing (0=none, 1=full)
+
+    # ========== Performance Settings ==========
+    PROCESSING_FPS_LIMIT: int = 90            # Maximum processing FPS (should match CAMERA_FPS)
+
     # ========== Window Sizes ==========
     TESTING_MODE_SIZE: tuple = (1280, 720)    # Large window for testing
     COMPACT_MODE_SIZE: tuple = (320, 240)     # Small window for compact mode
 
     # ========== Gesture-to-Action Mappings ==========
     GESTURE_ACTIONS: dict = field(default_factory=lambda: {
-        "pinch": "left_click",
+        "L_shape": "left_click",
         # Add more mappings here:
         # "fist": "right_click",
         # "thumbs_up": "scroll_up",

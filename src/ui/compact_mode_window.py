@@ -4,6 +4,7 @@ Compact Mode Window - Small always-on-top window WITH action execution.
 
 import cv2
 import numpy as np
+import pyautogui
 
 from src.core.gesture_detector import GestureDetector
 from src.core.gesture_recognizer import GestureRecognizer
@@ -54,6 +55,10 @@ class CompactModeWindow:
         )
 
         self.fps_counter = FPSCounter()
+
+        # Get screen size for cursor control
+        self.screen_width, self.screen_height = pyautogui.size()
+        print(f"✓ Screen size detected: {self.screen_width}x{self.screen_height}")
 
         # Camera setup
         self.cap = cv2.VideoCapture(config.CAMERA_INDEX)
@@ -118,12 +123,21 @@ class CompactModeWindow:
                     self.current_gesture = gesture
                     self.current_confidence = confidence
 
-                    # Update action trigger
-                    triggered_gesture = self.action_executor.update(gesture)
+                    # Update action trigger (NOW PASSES hand_landmarks)
+                    triggered_gesture = self.action_executor.update(gesture, hand_landmarks)
 
-                    # Execute action if triggered
+                    # Execute discrete action if triggered
                     if triggered_gesture:
                         self.action_executor.execute_action(triggered_gesture)
+
+                    # Update continuous control (called every frame)
+                    self.action_executor.update_continuous_control(
+                        hand_landmarks=hand_landmarks,
+                        sensitivity=self.config.CURSOR_SENSITIVITY,
+                        smoothing=self.config.CURSOR_SMOOTHING,
+                        screen_width=self.screen_width,
+                        screen_height=self.screen_height
+                    )
                 else:
                     self.current_gesture = gesture  # "Invalid (scale too small)"
                     self.current_confidence = 0.0
@@ -148,8 +162,9 @@ class CompactModeWindow:
                 cv2.imshow(self.window_name, frame)
             # Note: Detection and action execution continue even when minimized!
 
-            # Handle keyboard input
-            key = cv2.waitKey(1) & 0xFF
+            # Handle keyboard input (with FPS limiting)
+            wait_time = max(1, int(1000 / self.config.PROCESSING_FPS_LIMIT))
+            key = cv2.waitKey(wait_time) & 0xFF
 
             if key == ord('q') or key == 27:  # Q or ESC
                 break

@@ -68,12 +68,14 @@ class GestureRecognizer:
         features = result['normalized'].reshape(1, -1)  # Shape: (1, 42)
 
         # Predict
-        prediction_id = self.model.predict(features)[0]
+        prediction_id = int(self.model.predict(features)[0])
 
         # Get prediction probabilities (if model supports it)
         if hasattr(self.model, 'predict_proba'):
             probabilities = self.model.predict_proba(features)[0]
-            confidence = probabilities[prediction_id]
+            # Find the index of prediction_id in model.classes_
+            class_index = list(self.model.classes_).index(prediction_id)
+            confidence = probabilities[class_index]
         else:
             confidence = 1.0  # k-NN doesn't have probabilities
 

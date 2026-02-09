@@ -383,20 +383,20 @@ class GestureModelTrainer:
         # Per-class accuracy
         print("Per-class accuracy:")
         for i, class_id in enumerate(unique_classes):
-            gesture_name = self.gesture_map[str(class_id)]
+            gesture_name = self.gesture_map[str(int(class_id))]
             class_total = cm[i].sum()
             class_correct = cm[i, i]
             class_accuracy = (class_correct / class_total * 100) if class_total > 0 else 0
             print(f"  {gesture_name:15}: {class_accuracy:5.1f}% ({class_correct}/{class_total})")
-        
+
         # Find most confused pairs
         print(f"\nMost confused gesture pairs:")
         confusion_pairs = []
         for i in range(len(cm)):
             for j in range(len(cm)):
                 if i != j and cm[i, j] > 0:
-                    true_gesture = self.gesture_map[str(unique_classes[i])]
-                    pred_gesture = self.gesture_map[str(unique_classes[j])]
+                    true_gesture = self.gesture_map[str(int(unique_classes[i]))]
+                    pred_gesture = self.gesture_map[str(int(unique_classes[j]))]
                     confusion_pairs.append((cm[i, j], true_gesture, pred_gesture))
         
         confusion_pairs.sort(reverse=True)
