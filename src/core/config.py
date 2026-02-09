@@ -28,7 +28,7 @@ class AppConfig:
         return self.PROJECT_ROOT / "data" / "gesture_map.json"
 
     # ========== Camera Settings ==========
-    CAMERA_INDEX: int = 0
+    CAMERA_INDEX: int = 1
     CAMERA_WIDTH: int = 1280
     CAMERA_HEIGHT: int = 720
     CAMERA_FPS: int = 90
@@ -48,6 +48,11 @@ class AppConfig:
     CURSOR_SENSITIVITY: float = 1.5           # Movement gain factor
     CURSOR_SMOOTHING: float = 0             # Exponential smoothing (0=none, 1=full)
 
+    # ========== Volume Control Settings ==========
+    VOLUME_INCREMENT_PERCENT: float = 5.0         # Volume change per step (0-100%)
+    VOLUME_INCREMENT_INTERVAL: float = 0.5        # Seconds between increments
+    VOLUME_SMOOTHING_FRAMES: int = 3             # Frames before continuous increments start
+
     # ========== Performance Settings ==========
     PROCESSING_FPS_LIMIT: int = 90            # Maximum processing FPS (should match CAMERA_FPS)
 
@@ -57,11 +62,11 @@ class AppConfig:
 
     # ========== Gesture-to-Action Mappings ==========
     GESTURE_ACTIONS: dict = field(default_factory=lambda: {
-        "L_shape": "left_click",
+        # "L_shape": "left_click",
         # Add more mappings here:
         # "fist": "right_click",
-        # "thumbs_up": "scroll_up",
-        # "open_palm": "scroll_down",
+        "thumbs_up": "volume_up",
+        "thumbs_down": "volume_down",
     })
 
     # ========== UI Colors (BGR format for OpenCV) ==========

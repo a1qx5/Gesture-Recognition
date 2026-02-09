@@ -54,6 +54,11 @@ class CompactModeWindow:
             min_dwell_frames=config.ACTION_DWELL_FRAMES
         )
 
+        # Configure volume control parameters from config
+        self.action_executor.volume_increment_interval = config.VOLUME_INCREMENT_INTERVAL
+        self.action_executor.volume_increment_percent = config.VOLUME_INCREMENT_PERCENT
+        self.action_executor.volume_smoothing_frames = config.VOLUME_SMOOTHING_FRAMES
+
         self.fps_counter = FPSCounter()
 
         # Get screen size for cursor control
@@ -138,6 +143,9 @@ class CompactModeWindow:
                         screen_width=self.screen_width,
                         screen_height=self.screen_height
                     )
+
+                    # Update volume control (called every frame)
+                    self.action_executor.update_volume_control()
                 else:
                     self.current_gesture = gesture  # "Invalid (scale too small)"
                     self.current_confidence = 0.0
@@ -235,6 +243,61 @@ class CompactModeWindow:
             )
 
             self.action_executor.decrement_display_frames()
+
+        # Show thumb-ring distance when cursor control active
+        if (self.action_executor.continuous_active and
+            self.action_executor.last_thumb_ring_distance is not None):
+            distance = self.action_executor.last_thumb_ring_distance
+            threshold = self.action_executor.proximity_threshold
+            status = "READY" if distance < threshold else "EXTENDED"
+            color = (0, 255, 0) if distance < threshold else (0, 100, 255)  # Green if ready, orange if extended
+
+            cv2.putText(
+                frame,
+                f"Thumb: {distance:.3f} [{status}]",
+                (10, 95),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                color,
+                2
+            )
+
+        # Show current volume when volume control active
+        if self.action_executor.volume_control_active:
+            current_volume = self.action_executor.get_current_volume_percent()
+            if current_volume is not None:
+                # Determine color based on volume level
+                if current_volume > 75:
+                    vol_color = (0, 100, 255)  # Orange (high)
+                elif current_volume > 25:
+                    vol_color = (0, 255, 0)    # Green (medium)
+                else:
+                    vol_color = (0, 255, 255)  # Yellow (low)
+
+                gesture_text = "↑ VOL" if self.action_executor.volume_control_gesture == "volume_up" else "↓ VOL"
+
+                cv2.putText(
+                    frame,
+                    f"{gesture_text}: {current_volume:.0f}%",
+                    (10, 95),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    vol_color,
+                    2
+                )
+
+        # Display general volume level (always visible, not just during control)
+        current_volume = self.action_executor.get_current_volume_percent()
+        if current_volume is not None:
+            cv2.putText(
+                frame,
+                f"Vol: {current_volume:.0f}%",
+                (width - 90, height - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4,
+                self.config.COLOR_WHITE,
+                1
+            )
 
     def cleanup(self):
         """Release resources."""

@@ -2,6 +2,9 @@
 Action Executor - Dwell-based trigger management and action execution.
 """
 
+import time
+from pycaw.pycaw import AudioUtilities
+
 import pyautogui
 
 
@@ -46,6 +49,46 @@ class ActionExecutor:
         self.last_cursor_x = None                # For exponential smoothing
         self.last_cursor_y = None
 
+        # Proximity-based click state (for click-during-point)
+        self.last_thumb_ring_distance = None      # Previous frame's distance
+        self.proximity_click_triggered = False     # Debounce flag
+        self.proximity_threshold = 0.1            # Normalized distance threshold (tune this)
+
+        # Volume control state (for continuous timed increments)
+        self.volume_interface = None
+        self.volume_control_active = False           # Whether volume control is active
+        self.volume_control_gesture = None           # Current volume gesture ('volume_up' or 'volume_down')
+        self.volume_last_increment_time = None       # Timestamp of last volume increment
+        self.volume_increment_interval = 0.5         # Seconds between increments (configurable)
+        self.volume_increment_percent = 5.0          # Volume change per increment (configurable)
+        self.volume_smoothing_counter = 0            # Frames since initial trigger
+        self.volume_smoothing_frames = 3             # Frames to wait before continuous increments start
+
+        # Initialize Windows audio interface
+        self._initialize_volume_control()
+
+    def _initialize_volume_control(self):
+        """
+        Initialize Windows Core Audio API for volume control.
+
+        Establishes connection to the default audio output device.
+        Handles initialization failures gracefully.
+        """
+        try:
+            # Get default audio output device (returns AudioDevice object)
+            devices = AudioUtilities.GetSpeakers()
+            # Get the IAudioEndpointVolume interface directly
+            self.volume_interface = devices.EndpointVolume
+
+            # Test access by getting current volume
+            current_volume = self.volume_interface.GetMasterVolumeLevelScalar()
+            print(f"OK Volume control initialized (current: {current_volume*100:.0f}%)")
+
+        except Exception as e:
+            print(f"WARNING: Volume control initialization failed: {e}")
+            print("  Volume gestures will be disabled.")
+            self.volume_interface = None
+
     def update(self, detected_gesture, hand_landmarks=None):
         """
         Update trigger state with current gesture.
@@ -77,6 +120,11 @@ class ActionExecutor:
                     # Activate continuous control (don't trigger discrete action)
                     self._activate_continuous_control(detected_gesture, hand_landmarks)
                     return None
+                elif detected_gesture in self.gesture_actions and \
+                     self.gesture_actions[detected_gesture] in ['volume_up', 'volume_down']:
+                    # Activate continuous volume control
+                    self._activate_volume_control(detected_gesture)
+                    return None
                 else:
                     # Trigger discrete action as before
                     return detected_gesture  # TRIGGER ACTION
@@ -85,6 +133,10 @@ class ActionExecutor:
             # Deactivate continuous control if active
             if self.continuous_active:
                 self._deactivate_continuous_control()
+
+            # Deactivate volume control if active
+            if self.volume_control_active:
+                self._deactivate_volume_control()
 
             # Reset state
             self.current_gesture = detected_gesture
@@ -115,6 +167,10 @@ class ActionExecutor:
             self._execute_scroll_up()
         elif action_name == "scroll_down":
             self._execute_scroll_down()
+        elif action_name == "volume_up":
+            self._execute_volume_up()
+        elif action_name == "volume_down":
+            self._execute_volume_down()
         # Add more action handlers here as needed
 
     def _execute_left_click(self):
@@ -122,28 +178,105 @@ class ActionExecutor:
         pyautogui.click()
         self.last_action = "LEFT CLICK"
         self.action_display_frames = 30  # Show feedback for ~1 second
-        print(f"✓ LEFT CLICK executed (gesture triggered)")
+        print(f"OK LEFT CLICK executed (gesture triggered)")
 
     def _execute_right_click(self):
         """Execute right mouse click at current cursor position."""
         pyautogui.click(button='right')
         self.last_action = "RIGHT CLICK"
         self.action_display_frames = 30
-        print(f"✓ RIGHT CLICK executed (gesture triggered)")
+        print(f"OK RIGHT CLICK executed (gesture triggered)")
 
     def _execute_scroll_up(self):
         """Scroll up by 100 units."""
         pyautogui.scroll(100)
         self.last_action = "SCROLL UP"
         self.action_display_frames = 30
-        print(f"✓ SCROLL UP executed (gesture triggered)")
+        print(f"OK SCROLL UP executed (gesture triggered)")
 
     def _execute_scroll_down(self):
         """Scroll down by 100 units."""
         pyautogui.scroll(-100)
         self.last_action = "SCROLL DOWN"
         self.action_display_frames = 30
-        print(f"✓ SCROLL DOWN executed (gesture triggered)")
+        print(f"OK SCROLL DOWN executed (gesture triggered)")
+
+    def _execute_volume_up(self):
+        """
+        Increase system volume by configured increment.
+
+        Clamps to maximum of 100% (1.0 scalar).
+        """
+        if self.volume_interface is None:
+            print("WARNING: Volume control not available")
+            return
+
+        try:
+            # Get current volume (0.0 - 1.0)
+            current_volume = self.volume_interface.GetMasterVolumeLevelScalar()
+
+            # Calculate new volume
+            increment = self.volume_increment_percent / 100.0
+            new_volume = min(1.0, current_volume + increment)
+
+            # Set new volume
+            self.volume_interface.SetMasterVolumeLevelScalar(new_volume, None)
+
+            # Update UI feedback
+            self.last_action = f"VOL UP ({new_volume*100:.0f}%)"
+            self.action_display_frames = 30
+
+            print(f"OK VOLUME UP: {current_volume*100:.0f}% -> {new_volume*100:.0f}%")
+
+        except Exception as e:
+            print(f"WARNING: Volume control error: {e}")
+
+    def _execute_volume_down(self):
+        """
+        Decrease system volume by configured increment.
+
+        Clamps to minimum of 0% (0.0 scalar).
+        """
+        if self.volume_interface is None:
+            print("WARNING: Volume control not available")
+            return
+
+        try:
+            # Get current volume (0.0 - 1.0)
+            current_volume = self.volume_interface.GetMasterVolumeLevelScalar()
+
+            # Calculate new volume
+            decrement = self.volume_increment_percent / 100.0
+            new_volume = max(0.0, current_volume - decrement)
+
+            # Set new volume
+            self.volume_interface.SetMasterVolumeLevelScalar(new_volume, None)
+
+            # Update UI feedback
+            self.last_action = f"VOL DOWN ({new_volume*100:.0f}%)"
+            self.action_display_frames = 30
+
+            print(f"OK VOLUME DOWN: {current_volume*100:.0f}% -> {new_volume*100:.0f}%")
+
+        except Exception as e:
+            print(f"WARNING: Volume control error: {e}")
+
+    def get_current_volume_percent(self):
+        """
+        Get current system volume as percentage (0-100).
+
+        Returns:
+            float: Volume percentage, or None if volume control unavailable
+        """
+        if self.volume_interface is None:
+            return None
+
+        try:
+            volume_scalar = self.volume_interface.GetMasterVolumeLevelScalar()
+            return volume_scalar * 100.0
+        except Exception as e:
+            print(f"WARNING: Error getting volume: {e}")
+            return None
 
     def _activate_continuous_control(self, gesture, hand_landmarks):
         """
@@ -168,7 +301,11 @@ class ActionExecutor:
             self.origin_hand_x = hand_landmarks.landmark[8].x  # Normalized (0-1)
             self.origin_hand_y = hand_landmarks.landmark[8].y
 
-        print(f"✓ Cursor control ACTIVATED")
+        # Reset proximity click state
+        self.last_thumb_ring_distance = None
+        self.proximity_click_triggered = False
+
+        print(f"OK Cursor control ACTIVATED")
         print(f"  Origin cursor: ({current_x}, {current_y})")
         print(f"  Origin hand: ({self.origin_hand_x:.3f}, {self.origin_hand_y:.3f})")
 
@@ -218,10 +355,32 @@ class ActionExecutor:
         self.last_cursor_x = smoothed_x
         self.last_cursor_y = smoothed_y
 
+        # Check for proximity-based click trigger
+        current_distance = self._calculate_thumb_ring_distance(hand_landmarks)
+
+        # Detect threshold crossing (AWAY from ring finger = click)
+        if self.last_thumb_ring_distance is not None:
+            # Click on proximity EXIT: distance was below threshold, now above
+            if (self.last_thumb_ring_distance < self.proximity_threshold and
+                current_distance >= self.proximity_threshold and
+                not self.proximity_click_triggered):
+
+                # Trigger click
+                self._execute_left_click()
+                self.proximity_click_triggered = True
+                print(f"OK PROXIMITY CLICK (distance: {self.last_thumb_ring_distance:.3f} -> {current_distance:.3f})")
+
+            # Reset debounce when thumb returns close to ring finger
+            elif current_distance < self.proximity_threshold:
+                self.proximity_click_triggered = False
+
+        # Update distance for next frame
+        self.last_thumb_ring_distance = current_distance
+
     def _deactivate_continuous_control(self):
         """Reset continuous control state."""
         if self.continuous_active:
-            print(f"✓ Cursor control DEACTIVATED")
+            print(f"OK Cursor control DEACTIVATED")
 
         self.continuous_gesture = None
         self.continuous_active = False
@@ -232,8 +391,103 @@ class ActionExecutor:
         self.last_cursor_x = None
         self.last_cursor_y = None
 
+        # Reset proximity click state
+        self.last_thumb_ring_distance = None
+        self.proximity_click_triggered = False
+
+    def _activate_volume_control(self, gesture):
+        """
+        Activate continuous volume control for a volume gesture.
+
+        Args:
+            gesture: Name of the volume gesture ('thumbs_up' or 'thumbs_down')
+        """
+        if self.volume_interface is None:
+            print("WARNING: Volume control not available")
+            return
+
+        action_name = self.gesture_actions.get(gesture)
+        self.volume_control_active = True
+        self.volume_control_gesture = action_name
+        self.volume_last_increment_time = time.time()
+        self.volume_smoothing_counter = 0
+
+        # Execute first increment immediately
+        if action_name == "volume_up":
+            self._execute_volume_up()
+        elif action_name == "volume_down":
+            self._execute_volume_down()
+
+        print(f"OK Volume control ACTIVATED: {action_name}")
+
+    def _deactivate_volume_control(self):
+        """Reset volume control state."""
+        if self.volume_control_active:
+            print(f"OK Volume control DEACTIVATED")
+
+        self.volume_control_active = False
+        self.volume_control_gesture = None
+        self.volume_last_increment_time = None
+        self.volume_smoothing_counter = 0
+
+    def update_volume_control(self):
+        """
+        Update volume control - execute timed increments.
+
+        Call this every frame when volume control is active.
+        Checks elapsed time and triggers increments at configured interval.
+        """
+        if not self.volume_control_active or self.volume_interface is None:
+            return
+
+        # Increment smoothing counter
+        self.volume_smoothing_counter += 1
+
+        # Wait for smoothing period before starting continuous increments
+        if self.volume_smoothing_counter < self.volume_smoothing_frames:
+            return
+
+        # Check if enough time has elapsed since last increment
+        current_time = time.time()
+        elapsed = current_time - self.volume_last_increment_time
+
+        if elapsed >= self.volume_increment_interval:
+            # Execute volume change
+            if self.volume_control_gesture == "volume_up":
+                self._execute_volume_up()
+            elif self.volume_control_gesture == "volume_down":
+                self._execute_volume_down()
+
+            # Update last increment timestamp
+            self.volume_last_increment_time = current_time
+
+    def _calculate_thumb_ring_distance(self, hand_landmarks):
+        """
+        Calculate normalized Euclidean distance between thumb tip and ring finger DIP joint.
+
+        Args:
+            hand_landmarks: MediaPipe hand landmarks
+
+        Returns:
+            float: Normalized distance (0-1 scale)
+        """
+        import math
+
+        # Landmark 4 = thumb tip
+        # Landmark 15 = ring finger DIP joint (second-to-tip joint)
+        thumb_tip = hand_landmarks.landmark[4]
+        ring_dip = hand_landmarks.landmark[15]
+
+        # Euclidean distance in normalized coordinates
+        distance = math.sqrt(
+            (thumb_tip.x - ring_dip.x) ** 2 +
+            (thumb_tip.y - ring_dip.y) ** 2
+        )
+
+        return distance
+
     def reset(self):
-        """Clear all state (both discrete and continuous)."""
+        """Clear all state (discrete, continuous, and volume control)."""
         # Discrete action state
         self.current_gesture = None
         self.frame_count = 0
@@ -242,6 +496,10 @@ class ActionExecutor:
         # Continuous control state
         if self.continuous_active:
             self._deactivate_continuous_control()
+
+        # Volume control state
+        if self.volume_control_active:
+            self._deactivate_volume_control()
 
     def get_last_action(self):
         """Return the last executed action (for UI feedback)."""
