@@ -28,7 +28,7 @@ class AppConfig:
         return self.PROJECT_ROOT / "data" / "gesture_map.json"
 
     # ========== Camera Settings ==========
-    CAMERA_INDEX: int = 1
+    CAMERA_INDEX: int = 0
     CAMERA_WIDTH: int = 1280
     CAMERA_HEIGHT: int = 720
     CAMERA_FPS: int = 90
