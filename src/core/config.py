@@ -67,6 +67,7 @@ class AppConfig:
         # "fist": "right_click",
         "thumbs_up": "volume_up",
         "thumbs_down": "volume_down",
+        "index_middle": "drag_control",  # Drag-and-drop control
     })
 
     # ========== UI Colors (BGR format for OpenCV) ==========

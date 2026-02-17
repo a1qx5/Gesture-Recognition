@@ -7,6 +7,13 @@ from pycaw.pycaw import AudioUtilities
 
 import pyautogui
 
+try:
+    from pynput.mouse import Controller as PynputMouseController, Button as PynputButton
+    PYNPUT_AVAILABLE = True
+except ImportError:
+    PYNPUT_AVAILABLE = False
+    print("WARNING: pynput not available - drag control disabled")
+
 
 class ActionExecutor:
     """
@@ -64,6 +71,23 @@ class ActionExecutor:
         self.volume_smoothing_counter = 0            # Frames since initial trigger
         self.volume_smoothing_frames = 3             # Frames to wait before continuous increments start
 
+        # Drag control state
+        self.drag_active = False
+        self.drag_gesture = None
+        self.drag_button_pressed = False
+        self.origin_drag_cursor_x = None
+        self.origin_drag_cursor_y = None
+        self.origin_drag_hand_x = None
+        self.origin_drag_hand_y = None
+        self.last_drag_cursor_x = None
+        self.last_drag_cursor_y = None
+
+        # Initialize pynput mouse controller
+        if PYNPUT_AVAILABLE:
+            self.mouse_controller = PynputMouseController()
+        else:
+            self.mouse_controller = None
+
         # Initialize Windows audio interface
         self._initialize_volume_control()
 
@@ -120,6 +144,10 @@ class ActionExecutor:
                     # Activate continuous control (don't trigger discrete action)
                     self._activate_continuous_control(detected_gesture, hand_landmarks)
                     return None
+                elif detected_gesture == 'index_middle':
+                    # Activate drag control
+                    self._activate_drag_control(detected_gesture, hand_landmarks)
+                    return None
                 elif detected_gesture in self.gesture_actions and \
                      self.gesture_actions[detected_gesture] in ['volume_up', 'volume_down']:
                     # Activate continuous volume control
@@ -137,6 +165,10 @@ class ActionExecutor:
             # Deactivate volume control if active
             if self.volume_control_active:
                 self._deactivate_volume_control()
+
+            # Deactivate drag control if active
+            if self.drag_active:
+                self._deactivate_drag_control()
 
             # Reset state
             self.current_gesture = detected_gesture
@@ -309,6 +341,40 @@ class ActionExecutor:
         print(f"  Origin cursor: ({current_x}, {current_y})")
         print(f"  Origin hand: ({self.origin_hand_x:.3f}, {self.origin_hand_y:.3f})")
 
+    def _activate_drag_control(self, gesture, hand_landmarks):
+        """Activate drag control - press mouse button and capture origin positions."""
+        if not PYNPUT_AVAILABLE or self.mouse_controller is None:
+            print("ERROR: Cannot activate drag - pynput not available")
+            return
+
+        self.drag_active = True
+        self.drag_gesture = gesture
+
+        # Press and hold left mouse button
+        try:
+            self.mouse_controller.press(PynputButton.left)
+            self.drag_button_pressed = True
+            print(f"OK Drag control ACTIVATED (gesture: {gesture})")
+            print(f"   Mouse button PRESSED")
+        except Exception as e:
+            print(f"ERROR: Failed to press mouse button: {e}")
+            self.drag_active = False
+            return
+
+        # Capture origin positions
+        current_x, current_y = pyautogui.position()
+        self.origin_drag_cursor_x = current_x
+        self.origin_drag_cursor_y = current_y
+        self.last_drag_cursor_x = current_x
+        self.last_drag_cursor_y = current_y
+
+        if hand_landmarks:
+            self.origin_drag_hand_x = hand_landmarks.landmark[8].x  # Index finger tip
+            self.origin_drag_hand_y = hand_landmarks.landmark[8].y
+
+        self.last_action = "DRAG START"
+        self.action_display_frames = 30
+
     def update_continuous_control(self, hand_landmarks, sensitivity=1.5, smoothing=0.3,
                                    screen_width=1920, screen_height=1080):
         """
@@ -377,6 +443,43 @@ class ActionExecutor:
         # Update distance for next frame
         self.last_thumb_ring_distance = current_distance
 
+    def update_drag_control(self, hand_landmarks, sensitivity=1.5, smoothing=0.3,
+                            screen_width=1920, screen_height=1080):
+        """Update cursor position during drag (call every frame while dragging)."""
+        if not self.drag_active or hand_landmarks is None:
+            return
+
+        # Get current hand position (index finger tip = landmark 8)
+        current_hand_x = hand_landmarks.landmark[8].x
+        current_hand_y = hand_landmarks.landmark[8].y
+
+        # Calculate hand movement delta (in normalized coords 0-1)
+        delta_x = current_hand_x - self.origin_drag_hand_x
+        delta_y = current_hand_y - self.origin_drag_hand_y
+
+        # Transform to screen pixels with sensitivity
+        pixel_delta_x = delta_x * screen_width * sensitivity
+        pixel_delta_y = delta_y * screen_height * sensitivity
+
+        # Calculate new cursor position (relative to drag origin)
+        new_cursor_x = self.origin_drag_cursor_x + pixel_delta_x
+        new_cursor_y = self.origin_drag_cursor_y + pixel_delta_y
+
+        # Apply exponential moving average for smoothing
+        smoothed_x = self.last_drag_cursor_x * smoothing + new_cursor_x * (1 - smoothing)
+        smoothed_y = self.last_drag_cursor_y * smoothing + new_cursor_y * (1 - smoothing)
+
+        # Clamp to screen boundaries
+        smoothed_x = max(0, min(smoothed_x, screen_width - 1))
+        smoothed_y = max(0, min(smoothed_y, screen_height - 1))
+
+        # Update cursor position (button still pressed)
+        pyautogui.moveTo(int(smoothed_x), int(smoothed_y), duration=0)
+
+        # Store for next frame
+        self.last_drag_cursor_x = smoothed_x
+        self.last_drag_cursor_y = smoothed_y
+
     def _deactivate_continuous_control(self):
         """Reset continuous control state."""
         if self.continuous_active:
@@ -394,6 +497,32 @@ class ActionExecutor:
         # Reset proximity click state
         self.last_thumb_ring_distance = None
         self.proximity_click_triggered = False
+
+    def _deactivate_drag_control(self):
+        """Release mouse button and reset drag state."""
+        if self.drag_active:
+            # Release mouse button
+            if self.drag_button_pressed and self.mouse_controller is not None:
+                try:
+                    self.mouse_controller.release(PynputButton.left)
+                    print(f"   Mouse button RELEASED")
+                except Exception as e:
+                    print(f"ERROR: Failed to release mouse button: {e}")
+
+            print(f"OK Drag control DEACTIVATED")
+            self.last_action = "DRAG END"
+            self.action_display_frames = 30
+
+        # Reset all drag state
+        self.drag_active = False
+        self.drag_gesture = None
+        self.drag_button_pressed = False
+        self.origin_drag_cursor_x = None
+        self.origin_drag_cursor_y = None
+        self.origin_drag_hand_x = None
+        self.origin_drag_hand_y = None
+        self.last_drag_cursor_x = None
+        self.last_drag_cursor_y = None
 
     def _activate_volume_control(self, gesture):
         """
@@ -487,7 +616,7 @@ class ActionExecutor:
         return distance
 
     def reset(self):
-        """Clear all state (discrete, continuous, and volume control)."""
+        """Clear all state (discrete, continuous, volume, and drag control)."""
         # Discrete action state
         self.current_gesture = None
         self.frame_count = 0
@@ -500,6 +629,10 @@ class ActionExecutor:
         # Volume control state
         if self.volume_control_active:
             self._deactivate_volume_control()
+
+        # Drag control state
+        if self.drag_active:
+            self._deactivate_drag_control()
 
     def get_last_action(self):
         """Return the last executed action (for UI feedback)."""

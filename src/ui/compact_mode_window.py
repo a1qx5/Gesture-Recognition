@@ -144,6 +144,15 @@ class CompactModeWindow:
                         screen_height=self.screen_height
                     )
 
+                    # Update drag control (called every frame)
+                    self.action_executor.update_drag_control(
+                        hand_landmarks=hand_landmarks,
+                        sensitivity=self.config.CURSOR_SENSITIVITY,
+                        smoothing=self.config.CURSOR_SMOOTHING,
+                        screen_width=self.screen_width,
+                        screen_height=self.screen_height
+                    )
+
                     # Update volume control (called every frame)
                     self.action_executor.update_volume_control()
                 else:
@@ -243,6 +252,13 @@ class CompactModeWindow:
             )
 
             self.action_executor.decrement_display_frames()
+
+        # Show drag state indicator
+        if self.action_executor.drag_active:
+            cv2.putText(
+                frame, "DRAGGING...", (10, 110),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 2
+            )
 
         # Show thumb-ring distance when cursor control active
         if (self.action_executor.continuous_active and
