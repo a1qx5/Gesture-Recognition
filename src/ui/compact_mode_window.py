@@ -1,7 +1,7 @@
 """
 Compact Mode Window - Small always-on-top window WITH action execution.
 """
-
+import subprocess
 import cv2
 import numpy as np
 import pyautogui
@@ -43,6 +43,9 @@ class CompactModeWindow:
             min_tracking_confidence=config.MIN_TRACKING_CONFIDENCE
         )
 
+        self.settings_button_rect = (50, 50, 20, 20)
+        self.settings_button_hovered = False
+
         self.recognizer = GestureRecognizer(
             model_path=config.MODEL_PATH,
             gesture_map_path=config.GESTURE_MAP_PATH,
@@ -78,6 +81,26 @@ class CompactModeWindow:
         # Window name
         self.window_name = "Compact Mode - Gesture Control"
 
+    def _on_mouse_event(self, event, x, y, flags, param):
+        """
+        Handle mouse events for settings button interaction.
+        Args:
+            event: OpenCV mouse event type
+            x, y: Mouse coords
+            flags: Additional flags
+            param: Additional params
+        """
+        btn_x, btn_y, btn_w, btn_h = self.settings_button_rect
+
+        inside_button = (btn_x <= x <=btn_x + btn_w and
+                         btn_y <= y <= btn_y + btn_h)
+
+        self.settings_button_hovered = inside_button
+
+        if event == cv2.EVENT_LBUTTONDOWN and inside_button:
+            print("Settings button clicked")
+            self._open_display_settings()
+
     def run(self):
         """Main loop for compact mode."""
         print("\n" + "="*60)
@@ -98,6 +121,7 @@ class CompactModeWindow:
         cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
         cv2.resizeWindow(self.window_name, *self.config.COMPACT_MODE_SIZE)
 
+        cv2.setMouseCallback(self.window_name, self._on_mouse_event)
         # Set always-on-top
         try:
             cv2.setWindowProperty(self.window_name, cv2.WND_PROP_TOPMOST, 1)
@@ -314,6 +338,46 @@ class CompactModeWindow:
                 self.config.COLOR_WHITE,
                 1
             )
+
+        btn_size = 30
+        btn_x = width - 40
+        btn_y = 10
+
+        self.settings_button_rect = (btn_x, btn_y, btn_size, btn_size)
+
+        center_x = btn_x + btn_size // 2
+        center_y = btn_y + btn_size // 2
+        radius = btn_size // 2
+
+        if self.settings_button_hovered:
+            btn_color = (255, 255, 255)
+        else:
+            btn_color = (200, 200, 200)
+
+        cv2.circle(frame, (center_x, center_y), radius, btn_color, -1)
+
+        text_x = btn_x + 7
+        text_y = btn_y + 22
+
+        cv2.putText(
+            frame,
+            "⚙",
+            (text_x, text_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (60, 60, 60),
+            2
+        )
+
+    def _open_display_settings(self):
+        """
+        Open windows display settings page.
+        """
+        try:
+            subprocess.Popen(['start', 'ms-settings:display'], shell=True)
+            print("Windows display settings opened")
+        except Exception as e:
+            print(f"Failed: {e}")
 
     def cleanup(self):
         """Release resources."""
