@@ -82,6 +82,17 @@ class ActionExecutor:
         self.last_drag_cursor_x = None
         self.last_drag_cursor_y = None
 
+        # Close-app hold state
+        self.close_app_active = False          # Whether the hold timer is running
+        self.close_app_start_time = None       # Timestamp when hold started
+        self.close_app_hold_duration = 5.0     # Seconds to hold before closing (set from config)
+        self.should_close = False              # Flag read by the window loop to break
+
+        # Minimize-app hold state
+        self.minimize_app_active = False       # Whether the hold timer is running
+        self.minimize_app_start_time = None    # Timestamp when hold started
+        self.minimize_app_hold_duration = 2.5  # Seconds to hold before minimizing (set from config)
+
         # Initialize pynput mouse controller
         if PYNPUT_AVAILABLE:
             self.mouse_controller = PynputMouseController()
@@ -129,6 +140,10 @@ class ActionExecutor:
             self.current_gesture = None
             self.frame_count = 0
             self.triggered_this_gesture = False
+            if self.close_app_active:
+                self._deactivate_close_app()
+            if self.minimize_app_active:
+                self._deactivate_minimize_app()
             return None
 
         # Same gesture as previous frame
@@ -153,6 +168,16 @@ class ActionExecutor:
                     # Activate continuous volume control
                     self._activate_volume_control(detected_gesture)
                     return None
+                elif detected_gesture in self.gesture_actions and \
+                     self.gesture_actions[detected_gesture] == 'close_app':
+                    # Activate close-app hold timer
+                    self._activate_close_app()
+                    return None
+                elif detected_gesture in self.gesture_actions and \
+                     self.gesture_actions[detected_gesture] == 'minimize_app':
+                    # Activate minimize-app hold timer
+                    self._activate_minimize_app()
+                    return None
                 else:
                     # Trigger discrete action as before
                     return detected_gesture  # TRIGGER ACTION
@@ -169,6 +194,14 @@ class ActionExecutor:
             # Deactivate drag control if active
             if self.drag_active:
                 self._deactivate_drag_control()
+
+            # Deactivate close-app hold if active
+            if self.close_app_active:
+                self._deactivate_close_app()
+
+            # Deactivate minimize-app hold if active
+            if self.minimize_app_active:
+                self._deactivate_minimize_app()
 
             # Reset state
             self.current_gesture = detected_gesture
@@ -203,6 +236,8 @@ class ActionExecutor:
             self._execute_volume_up()
         elif action_name == "volume_down":
             self._execute_volume_down()
+        elif action_name == "close_app":
+            self._execute_close_app()
         # Add more action handlers here as needed
 
     def _execute_left_click(self):
@@ -559,6 +594,79 @@ class ActionExecutor:
         self.volume_last_increment_time = None
         self.volume_smoothing_counter = 0
 
+    def _activate_close_app(self):
+        """Start the close-app hold timer."""
+        self.close_app_active = True
+        self.close_app_start_time = time.time()
+        self.last_action = "CLOSING APP..."
+        self.action_display_frames = 30
+        print(f"OK Close-app hold ACTIVATED (hold for {self.close_app_hold_duration:.0f}s)")
+
+    def _deactivate_close_app(self):
+        """Cancel the close-app hold timer."""
+        if self.close_app_active:
+            print("OK Close-app hold DEACTIVATED (gesture released)")
+        self.close_app_active = False
+        self.close_app_start_time = None
+
+    def update_close_app(self):
+        """
+        Check hold duration and set should_close flag when threshold is met.
+
+        Call this every frame when close-app hold may be active.
+        """
+        if not self.close_app_active or self.close_app_start_time is None:
+            return
+        elapsed = time.time() - self.close_app_start_time
+        if elapsed >= self.close_app_hold_duration:
+            self._execute_close_app()
+
+    def _execute_close_app(self):
+        """Signal the application to close."""
+        self.should_close = True
+        self.close_app_active = False
+        self.last_action = "CLOSING APP"
+        self.action_display_frames = 30
+        print("OK CLOSE APP executed (open_palm held 5s)")
+
+    def _activate_minimize_app(self):
+        """Start the minimize-app hold timer."""
+        self.minimize_app_active = True
+        self.minimize_app_start_time = time.time()
+        self.last_action = "MINIMIZING..."
+        self.action_display_frames = 30
+        print(f"OK Minimize-app hold ACTIVATED (hold for {self.minimize_app_hold_duration:.1f}s)")
+
+    def _deactivate_minimize_app(self):
+        """Cancel the minimize-app hold timer."""
+        if self.minimize_app_active:
+            print("OK Minimize-app hold DEACTIVATED (gesture released)")
+        self.minimize_app_active = False
+        self.minimize_app_start_time = None
+
+    def update_minimize_app(self):
+        """
+        Check hold duration and minimize the focused app when threshold is met.
+
+        Call this every frame when minimize-app hold may be active.
+        """
+        if not self.minimize_app_active or self.minimize_app_start_time is None:
+            return
+        elapsed = time.time() - self.minimize_app_start_time
+        if elapsed >= self.minimize_app_hold_duration:
+            self._execute_minimize_app()
+
+    def _execute_minimize_app(self):
+        """Minimize the currently focused application window."""
+        import ctypes
+        hwnd = ctypes.windll.user32.GetForegroundWindow()
+        ctypes.windll.user32.ShowWindow(hwnd, 6)  # 6 = SW_MINIMIZE
+        self.minimize_app_active = False
+        self.minimize_app_start_time = None
+        self.last_action = "MINIMIZED"
+        self.action_display_frames = 30
+        print("OK MINIMIZE APP executed (fist held 2.5s)")
+
     def update_volume_control(self):
         """
         Update volume control - execute timed increments.
@@ -633,6 +741,15 @@ class ActionExecutor:
         # Drag control state
         if self.drag_active:
             self._deactivate_drag_control()
+
+        # Close-app hold state
+        if self.close_app_active:
+            self._deactivate_close_app()
+        self.should_close = False
+
+        # Minimize-app hold state
+        if self.minimize_app_active:
+            self._deactivate_minimize_app()
 
     def get_last_action(self):
         """Return the last executed action (for UI feedback)."""

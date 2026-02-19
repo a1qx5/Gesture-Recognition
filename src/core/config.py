@@ -43,6 +43,8 @@ class AppConfig:
 
     # ========== Action Settings ==========
     ACTION_DWELL_FRAMES: int = 5              # Frames to hold gesture before triggering (~0.15s at 30fps)
+    CLOSE_APP_HOLD_DURATION: float = 5.0      # Seconds open_palm must be held continuously to close app
+    MINIMIZE_APP_HOLD_DURATION: float = 1.5   # Seconds fist must be held continuously to minimize app
 
     # ========== Cursor Control Settings ==========
     CURSOR_SENSITIVITY: float = 1.5           # Movement gain factor
@@ -67,7 +69,9 @@ class AppConfig:
         # "fist": "right_click",
         "thumbs_up": "volume_up",
         "thumbs_down": "volume_down",
+        "fist": "minimize_app",           # Hold 2.5s to minimize focused app
         "index_middle": "drag_control",  # Drag-and-drop control
+        "open_palm": "close_app",        # Hold 5s to close application
     })
 
     # ========== UI Colors (BGR format for OpenCV) ==========

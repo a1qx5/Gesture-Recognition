@@ -2,6 +2,7 @@
 Compact Mode Window - Small always-on-top window WITH action execution.
 """
 import subprocess
+import time
 import cv2
 import numpy as np
 import pyautogui
@@ -61,6 +62,12 @@ class CompactModeWindow:
         self.action_executor.volume_increment_interval = config.VOLUME_INCREMENT_INTERVAL
         self.action_executor.volume_increment_percent = config.VOLUME_INCREMENT_PERCENT
         self.action_executor.volume_smoothing_frames = config.VOLUME_SMOOTHING_FRAMES
+
+        # Configure close-app hold duration from config
+        self.action_executor.close_app_hold_duration = config.CLOSE_APP_HOLD_DURATION
+
+        # Configure minimize-app hold duration from config
+        self.action_executor.minimize_app_hold_duration = config.MINIMIZE_APP_HOLD_DURATION
 
         self.fps_counter = FPSCounter()
 
@@ -179,6 +186,12 @@ class CompactModeWindow:
 
                     # Update volume control (called every frame)
                     self.action_executor.update_volume_control()
+
+                    # Update close-app hold timer (called every frame)
+                    self.action_executor.update_close_app()
+
+                    # Update minimize-app hold timer (called every frame)
+                    self.action_executor.update_minimize_app()
                 else:
                     self.current_gesture = gesture  # "Invalid (scale too small)"
                     self.current_confidence = 0.0
@@ -208,6 +221,9 @@ class CompactModeWindow:
             key = cv2.waitKey(wait_time) & 0xFF
 
             if key == ord('q') or key == 27:  # Q or ESC
+                break
+
+            if self.action_executor.should_close:
                 break
 
         # Cleanup
@@ -276,6 +292,38 @@ class CompactModeWindow:
             )
 
             self.action_executor.decrement_display_frames()
+
+        # Show close-app countdown progress bar
+        if self.action_executor.close_app_active and self.action_executor.close_app_start_time:
+            elapsed = time.time() - self.action_executor.close_app_start_time
+            progress = min(1.0, elapsed / self.action_executor.close_app_hold_duration)
+            bar_width = int(width * progress)
+            cv2.rectangle(frame, (0, height - 8), (bar_width, height), (0, 0, 255), -1)
+            cv2.putText(
+                frame,
+                f"CLOSING: {elapsed:.1f}s",
+                (10, height - 12),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4,
+                (0, 0, 255),
+                1
+            )
+
+        # Show minimize-app countdown progress bar
+        if self.action_executor.minimize_app_active and self.action_executor.minimize_app_start_time:
+            elapsed = time.time() - self.action_executor.minimize_app_start_time
+            progress = min(1.0, elapsed / self.action_executor.minimize_app_hold_duration)
+            bar_width = int(width * progress)
+            cv2.rectangle(frame, (0, height - 8), (bar_width, height), (0, 165, 255), -1)
+            cv2.putText(
+                frame,
+                f"MINIMIZING: {elapsed:.1f}s",
+                (10, height - 12),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4,
+                (0, 165, 255),
+                1
+            )
 
         # Show drag state indicator
         if self.action_executor.drag_active:
