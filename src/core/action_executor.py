@@ -61,6 +61,11 @@ class ActionExecutor:
         self.proximity_click_triggered = False     # Debounce flag
         self.proximity_threshold = 0.1            # Normalized distance threshold (tune this)
 
+        # Proximity-based double-click state (for double-click-during-point)
+        self.last_pinky_ring_distance = None       # Previous frame's distance
+        self.proximity_double_click_triggered = False  # Debounce flag
+        self.proximity_double_click_threshold = 0.08   # Normalized distance threshold
+
         # Volume control state (for continuous timed increments)
         self.volume_interface = None
         self.volume_control_active = False           # Whether volume control is active
@@ -92,6 +97,14 @@ class ActionExecutor:
         self.minimize_app_active = False       # Whether the hold timer is running
         self.minimize_app_start_time = None    # Timestamp when hold started
         self.minimize_app_hold_duration = 2.5  # Seconds to hold before minimizing (set from config)
+
+        # Scroll control state (for continuous timed increments)
+        self.scroll_control_active = False           # Whether scroll control is active
+        self.scroll_control_gesture = None           # Current scroll gesture ('scroll_up' or 'scroll_down')
+        self.scroll_last_increment_time = None       # Timestamp of last scroll increment
+        self.scroll_increment_interval = 0.1         # Seconds between increments (faster than volume)
+        self.scroll_smoothing_counter = 0            # Frames since initial trigger
+        self.scroll_smoothing_frames = 3             # Frames to wait before continuous increments start
 
         # Initialize pynput mouse controller
         if PYNPUT_AVAILABLE:
@@ -169,6 +182,11 @@ class ActionExecutor:
                     self._activate_volume_control(detected_gesture)
                     return None
                 elif detected_gesture in self.gesture_actions and \
+                     self.gesture_actions[detected_gesture] in ['scroll_up', 'scroll_down']:
+                    # Activate continuous scroll control
+                    self._activate_scroll_control(detected_gesture)
+                    return None
+                elif detected_gesture in self.gesture_actions and \
                      self.gesture_actions[detected_gesture] == 'close_app':
                     # Activate close-app hold timer
                     self._activate_close_app()
@@ -190,6 +208,10 @@ class ActionExecutor:
             # Deactivate volume control if active
             if self.volume_control_active:
                 self._deactivate_volume_control()
+
+            # Deactivate scroll control if active
+            if self.scroll_control_active:
+                self._deactivate_scroll_control()
 
             # Deactivate drag control if active
             if self.drag_active:
@@ -246,6 +268,13 @@ class ActionExecutor:
         self.last_action = "LEFT CLICK"
         self.action_display_frames = 30  # Show feedback for ~1 second
         print(f"OK LEFT CLICK executed (gesture triggered)")
+
+    def _execute_double_click(self):
+        """Execute double mouse click at current cursor position."""
+        pyautogui.doubleClick()
+        self.last_action = "DOUBLE CLICK"
+        self.action_display_frames = 30  # Show feedback for ~1 second
+        print(f"OK DOUBLE CLICK executed (proximity triggered)")
 
     def _execute_right_click(self):
         """Execute right mouse click at current cursor position."""
@@ -372,6 +401,10 @@ class ActionExecutor:
         self.last_thumb_ring_distance = None
         self.proximity_click_triggered = False
 
+        # Reset proximity double-click state
+        self.last_pinky_ring_distance = None
+        self.proximity_double_click_triggered = False
+
         print(f"OK Cursor control ACTIVATED")
         print(f"  Origin cursor: ({current_x}, {current_y})")
         print(f"  Origin hand: ({self.origin_hand_x:.3f}, {self.origin_hand_y:.3f})")
@@ -478,6 +511,28 @@ class ActionExecutor:
         # Update distance for next frame
         self.last_thumb_ring_distance = current_distance
 
+        # Check for proximity-based double-click trigger (pinky-ring)
+        current_double_click_distance = self._calculate_pinky_ring_distance(hand_landmarks)
+
+        # Detect threshold crossing (AWAY from ring finger = double-click)
+        if self.last_pinky_ring_distance is not None:
+            # Double-click on proximity EXIT: distance was below threshold, now above
+            if (self.last_pinky_ring_distance < self.proximity_double_click_threshold and
+                current_double_click_distance >= self.proximity_double_click_threshold and
+                not self.proximity_double_click_triggered):
+
+                # Trigger double-click
+                self._execute_double_click()
+                self.proximity_double_click_triggered = True
+                print(f"OK PROXIMITY DOUBLE-CLICK (distance: {self.last_pinky_ring_distance:.3f} -> {current_double_click_distance:.3f})")
+
+            # Reset debounce when pinky returns close to ring finger
+            elif current_double_click_distance < self.proximity_double_click_threshold:
+                self.proximity_double_click_triggered = False
+
+        # Update distance for next frame
+        self.last_pinky_ring_distance = current_double_click_distance
+
     def update_drag_control(self, hand_landmarks, sensitivity=1.5, smoothing=0.3,
                             screen_width=1920, screen_height=1080):
         """Update cursor position during drag (call every frame while dragging)."""
@@ -532,6 +587,10 @@ class ActionExecutor:
         # Reset proximity click state
         self.last_thumb_ring_distance = None
         self.proximity_click_triggered = False
+
+        # Reset proximity double-click state
+        self.last_pinky_ring_distance = None
+        self.proximity_double_click_triggered = False
 
     def _deactivate_drag_control(self):
         """Release mouse button and reset drag state."""
@@ -593,6 +652,37 @@ class ActionExecutor:
         self.volume_control_gesture = None
         self.volume_last_increment_time = None
         self.volume_smoothing_counter = 0
+
+    def _activate_scroll_control(self, gesture):
+        """
+        Activate continuous scroll control for a scroll gesture.
+
+        Args:
+            gesture: Name of the scroll gesture ('thumbs_up' or 'thumbs_down')
+        """
+        action_name = self.gesture_actions.get(gesture)
+        self.scroll_control_active = True
+        self.scroll_control_gesture = action_name
+        self.scroll_last_increment_time = time.time()
+        self.scroll_smoothing_counter = 0
+
+        # Execute first scroll immediately
+        if action_name == "scroll_up":
+            self._execute_scroll_up()
+        elif action_name == "scroll_down":
+            self._execute_scroll_down()
+
+        print(f"OK Scroll control ACTIVATED: {action_name}")
+
+    def _deactivate_scroll_control(self):
+        """Reset scroll control state."""
+        if self.scroll_control_active:
+            print(f"OK Scroll control DEACTIVATED")
+
+        self.scroll_control_active = False
+        self.scroll_control_gesture = None
+        self.scroll_last_increment_time = None
+        self.scroll_smoothing_counter = 0
 
     def _activate_close_app(self):
         """Start the close-app hold timer."""
@@ -698,6 +788,37 @@ class ActionExecutor:
             # Update last increment timestamp
             self.volume_last_increment_time = current_time
 
+    def update_scroll_control(self):
+        """
+        Update scroll control - execute timed increments.
+
+        Call this every frame when scroll control is active.
+        Checks elapsed time and triggers increments at configured interval.
+        """
+        if not self.scroll_control_active:
+            return
+
+        # Increment smoothing counter
+        self.scroll_smoothing_counter += 1
+
+        # Wait for smoothing period before starting continuous increments
+        if self.scroll_smoothing_counter < self.scroll_smoothing_frames:
+            return
+
+        # Check if enough time has elapsed since last increment
+        current_time = time.time()
+        elapsed = current_time - self.scroll_last_increment_time
+
+        if elapsed >= self.scroll_increment_interval:
+            # Execute scroll
+            if self.scroll_control_gesture == "scroll_up":
+                self._execute_scroll_up()
+            elif self.scroll_control_gesture == "scroll_down":
+                self._execute_scroll_down()
+
+            # Update last increment timestamp
+            self.scroll_last_increment_time = current_time
+
     def _calculate_thumb_ring_distance(self, hand_landmarks):
         """
         Calculate normalized Euclidean distance between thumb tip and ring finger DIP joint.
@@ -719,6 +840,31 @@ class ActionExecutor:
         distance = math.sqrt(
             (thumb_tip.x - ring_dip.x) ** 2 +
             (thumb_tip.y - ring_dip.y) ** 2
+        )
+
+        return distance
+
+    def _calculate_pinky_ring_distance(self, hand_landmarks):
+        """
+        Calculate normalized Euclidean distance between pinky tip and ring finger tip.
+
+        Args:
+            hand_landmarks: MediaPipe hand landmarks
+
+        Returns:
+            float: Normalized distance (0-1 scale)
+        """
+        import math
+
+        # Landmark 20 = pinky tip
+        # Landmark 16 = ring finger tip
+        pinky_tip = hand_landmarks.landmark[20]
+        ring_tip = hand_landmarks.landmark[16]
+
+        # Euclidean distance in normalized coordinates
+        distance = math.sqrt(
+            (pinky_tip.x - ring_tip.x) ** 2 +
+            (pinky_tip.y - ring_tip.y) ** 2
         )
 
         return distance

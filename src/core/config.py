@@ -67,8 +67,10 @@ class AppConfig:
         # "L_shape": "left_click",
         # Add more mappings here:
         # "fist": "right_click",
-        "thumbs_up": "volume_up",
-        "thumbs_down": "volume_down",
+        "thumbs_up_sideways": "volume_up",
+        "thumbs_down_sideways": "volume_down",
+        "thumbs_up": "scroll_up",
+        "thumbs_down": "scroll_down",
         "fist": "minimize_app",           # Hold 2.5s to minimize focused app
         "index_middle": "drag_control",  # Drag-and-drop control
         "open_palm": "close_app",        # Hold 5s to close application

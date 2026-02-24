@@ -4,7 +4,9 @@
   "2": "fist",
   "3": "open_palm",
   "4": "point",
-  "5": "thumbs_up",
-  "6": "thumbs_down",
-  "7": "index_middle"
+  "5": "thumbs_up_sideways",
+  "6": "thumbs_down_sideways",
+  "7": "index_middle",
+  "8": "thumbs_up",
+  "9": "thumbs_down"
 }

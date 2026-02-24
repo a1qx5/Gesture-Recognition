@@ -187,6 +187,9 @@ class CompactModeWindow:
                     # Update volume control (called every frame)
                     self.action_executor.update_volume_control()
 
+                    # Update scroll control (called every frame)
+                    self.action_executor.update_scroll_control()
+
                     # Update close-app hold timer (called every frame)
                     self.action_executor.update_close_app()
 
@@ -350,6 +353,24 @@ class CompactModeWindow:
                 2
             )
 
+        # Show pinky-ring distance when cursor control active
+        if (self.action_executor.continuous_active and
+            self.action_executor.last_pinky_ring_distance is not None):
+            distance = self.action_executor.last_pinky_ring_distance
+            threshold = self.action_executor.proximity_double_click_threshold
+            status = "READY" if distance < threshold else "EXTENDED"
+            color = (255, 0, 255) if distance < threshold else (147, 20, 255)  # Magenta if ready, purple if extended
+
+            cv2.putText(
+                frame,
+                f"Pinky: {distance:.3f} [{status}]",
+                (10, 115),  # Position below thumb-ring display (y=95)
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                color,
+                2
+            )
+
         # Show current volume when volume control active
         if self.action_executor.volume_control_active:
             current_volume = self.action_executor.get_current_volume_percent()
@@ -409,7 +430,7 @@ class CompactModeWindow:
 
         cv2.putText(
             frame,
-            "⚙",
+            "S",
             (text_x, text_y),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.8,
