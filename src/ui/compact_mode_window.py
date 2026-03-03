@@ -73,7 +73,7 @@ class CompactModeWindow:
 
         # Get screen size for cursor control
         self.screen_width, self.screen_height = pyautogui.size()
-        print(f"✓ Screen size detected: {self.screen_width}x{self.screen_height}")
+        print(f"OK Screen size detected: {self.screen_width}x{self.screen_height}")
 
         # Camera setup
         self.cap = cv2.VideoCapture(config.CAMERA_INDEX)
@@ -132,7 +132,7 @@ class CompactModeWindow:
         # Set always-on-top
         try:
             cv2.setWindowProperty(self.window_name, cv2.WND_PROP_TOPMOST, 1)
-            print("✓ Always-on-top enabled")
+            print("OK Always-on-top enabled")
         except:
             print("⚠ Warning: Always-on-top not supported on this platform")
 

@@ -9,6 +9,7 @@ import pyautogui
 
 try:
     from pynput.mouse import Controller as PynputMouseController, Button as PynputButton
+    from pynput.keyboard import Controller as KeyboardController, Key
     PYNPUT_AVAILABLE = True
 except ImportError:
     PYNPUT_AVAILABLE = False
@@ -106,11 +107,13 @@ class ActionExecutor:
         self.scroll_smoothing_counter = 0            # Frames since initial trigger
         self.scroll_smoothing_frames = 3             # Frames to wait before continuous increments start
 
-        # Initialize pynput mouse controller
+        # Initialize pynput controllers
         if PYNPUT_AVAILABLE:
             self.mouse_controller = PynputMouseController()
+            self.keyboard = KeyboardController()
         else:
             self.mouse_controller = None
+            self.keyboard = None
 
         # Initialize Windows audio interface
         self._initialize_volume_control()
@@ -260,6 +263,8 @@ class ActionExecutor:
             self._execute_volume_down()
         elif action_name == "close_app":
             self._execute_close_app()
+        elif action_name == "toggle_pause_play":
+            self._execute_toggle_pause_play()
         # Add more action handlers here as needed
 
     def _execute_left_click(self):
@@ -356,6 +361,31 @@ class ActionExecutor:
 
         except Exception as e:
             print(f"WARNING: Volume control error: {e}")
+
+    def _execute_toggle_pause_play(self):
+        """
+        Toggle global pause/play using Windows media key.
+
+        Sends VK_MEDIA_PLAY_PAUSE key code which works globally across all media applications
+        (Spotify, YouTube, VLC, Windows Media Player, etc.) regardless of focus.
+        """
+        if self.keyboard is None:
+            print("WARNING: Keyboard control not available - pause/play disabled")
+            return
+
+        try:
+            # Send global media play/pause key
+            self.keyboard.press(Key.media_play_pause)
+            self.keyboard.release(Key.media_play_pause)
+
+            # Update UI feedback
+            self.last_action = "PAUSE/PLAY"
+            self.action_display_frames = 30
+
+            print("OK PAUSE/PLAY toggled (global media key)")
+
+        except Exception as e:
+            print(f"WARNING: Media key control error: {e}")
 
     def get_current_volume_percent(self):
         """

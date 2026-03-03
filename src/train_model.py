@@ -127,7 +127,7 @@ class GestureModelTrainer:
             
             print(f"   Samples after cleaning: {len(self.X)}")
         else:
-            print("\n✓ No NaN or Inf values detected")
+            print("\nOK No NaN or Inf values detected")
     
     def split_train_test(self, test_size=0.2, random_state=42):
         """
@@ -213,7 +213,7 @@ class GestureModelTrainer:
         
         print(f"\nTraining on {len(self.X_train)} samples...")
         self.rf_model.fit(self.X_train, self.y_train)
-        print("✓ Training complete!")
+        print("OK Training complete!")
         
         # Evaluate on training set
         y_train_pred = self.rf_model.predict(self.X_train)
@@ -298,7 +298,7 @@ class GestureModelTrainer:
         
         print(f"\nTraining on {len(self.X_train)} samples...")
         self.knn_model.fit(self.X_train, self.y_train)
-        print("✓ Training complete! (k-NN is lazy: actual work happens at prediction time)")
+        print("OK Training complete! (k-NN is lazy: actual work happens at prediction time)")
         
         # Evaluate on training set
         y_train_pred = self.knn_model.predict(self.X_train)
@@ -362,7 +362,7 @@ class GestureModelTrainer:
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        print(f"  ✓ Saved to: {save_path}")
+        print(f"  OK Saved to: {save_path}")
         
         return cm
     
@@ -420,21 +420,21 @@ class GestureModelTrainer:
             rf_path = self.models_dir / f"random_forest_{timestamp}.pkl"
             with open(rf_path, 'wb') as f:
                 pickle.dump(self.rf_model, f)
-            print(f"✓ Random Forest saved to: {rf_path}")
+            print(f"OK Random Forest saved to: {rf_path}")
         
         # Save k-NN
         if self.knn_model:
             knn_path = self.models_dir / f"knn_{timestamp}.pkl"
             with open(knn_path, 'wb') as f:
                 pickle.dump(self.knn_model, f)
-            print(f"✓ k-NN saved to: {knn_path}")
+            print(f"OK k-NN saved to: {knn_path}")
         
         # Save a copy of the best model as "latest"
         # (You can choose which model to use based on test accuracy)
         best_model_path = self.models_dir / "gesture_classifier_latest.pkl"
         with open(best_model_path, 'wb') as f:
             pickle.dump(self.rf_model, f)  # Using RF as default
-        print(f"✓ Latest model saved to: {best_model_path}")
+        print(f"OK Latest model saved to: {best_model_path}")
     
     def run_full_pipeline(self):
         """Run the complete training and evaluation pipeline."""
@@ -496,11 +496,11 @@ class GestureModelTrainer:
         print(f"  k-NN:          {knn_acc:.2f}%")
         
         if rf_acc > knn_acc:
-            print(f"\n✓ Random Forest performed better (+{rf_acc - knn_acc:.2f}%)")
+            print(f"\nOK Random Forest performed better (+{rf_acc - knn_acc:.2f}%)")
         elif knn_acc > rf_acc:
-            print(f"\n✓ k-NN performed better (+{knn_acc - rf_acc:.2f}%)")
+            print(f"\nOK k-NN performed better (+{knn_acc - rf_acc:.2f}%)")
         else:
-            print(f"\n✓ Both models tied!")
+            print(f"\nOK Both models tied!")
         
         print(f"\nNext steps:")
         print(f"  1. Inspect confusion matrices to see which gestures are confused")

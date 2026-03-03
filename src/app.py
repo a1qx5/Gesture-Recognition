@@ -26,14 +26,14 @@ def main():
         menu.run()
 
     except FileNotFoundError as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\nERROR: {e}")
         print("\nPlease ensure:")
         print("  1. Model file exists: models/gesture_classifier_latest.pkl")
         print("  2. Gesture map exists: data/gesture_map.json")
         print("\nRun 'python src/train_model.py' to train a model if needed.")
 
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
+        print(f"\nERROR: Unexpected error: {e}")
         import traceback
         traceback.print_exc()
 

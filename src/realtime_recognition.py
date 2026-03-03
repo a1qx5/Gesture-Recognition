@@ -94,7 +94,7 @@ class RealtimeGestureRecognizer:
         print(f"Loading model from: {model_path}")
         with open(model_path, 'rb') as f:
             self.model = pickle.load(f)
-        print("✓ Model loaded successfully!")
+        print("OK Model loaded successfully!")
         
         # MediaPipe setup
         self.mp_hands = mp.solutions.hands
@@ -202,7 +202,7 @@ class RealtimeGestureRecognizer:
             pyautogui.click()
             self.last_action = "LEFT CLICK"
             self.action_display_frames = 30  # Show feedback for ~1 second
-            print(f"✓ LEFT CLICK executed (L_shape gesture)")
+            print(f"OK LEFT CLICK executed (L_shape gesture)")
         
         # Add more gesture → action mappings here:
         # elif gesture == "fist":

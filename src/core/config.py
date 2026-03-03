@@ -74,6 +74,7 @@ class AppConfig:
         "fist": "minimize_app",           # Hold 2.5s to minimize focused app
         "index_middle": "drag_control",  # Drag-and-drop control
         "open_palm": "close_app",        # Hold 5s to close application
+        "ok": "toggle_pause_play",       # Toggle global pause/play (media key)
     })
 
     # ========== UI Colors (BGR format for OpenCV) ==========

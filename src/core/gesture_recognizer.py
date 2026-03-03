@@ -37,7 +37,7 @@ class GestureRecognizer:
         print(f"Loading model from: {model_path}")
         with open(model_path, 'rb') as f:
             self.model = pickle.load(f)
-        print("✓ Model loaded successfully!")
+        print("OK Model loaded successfully!")
 
         # Temporal smoothing state
         self.prediction_history = []
