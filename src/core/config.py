@@ -16,6 +16,9 @@ class AppConfig:
 
     # ========== Paths ==========
     PROJECT_ROOT: Path = field(default_factory=lambda: Path(__file__).parent.parent.parent)
+    SCREENSHOT_SAVE_DIR: Path = field(
+        default_factory=lambda: Path.home() / "Pictures" / "GestureScreenshots"
+    )
 
     @property
     def MODEL_PATH(self):
@@ -77,6 +80,7 @@ class AppConfig:
         "ok": "toggle_pause_play",       # Toggle global pause/play (media key)
         "thumb_left": "previous_track",  # Skip to previous track (media key)
         "thumb_right": "next_track",     # Skip to next track (media key)
+        "pinch": "screenshot",           # Capture screenshot to Pictures/GestureScreenshots
     })
 
     # ========== UI Colors (BGR format for OpenCV) ==========

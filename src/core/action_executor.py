@@ -3,6 +3,9 @@ Action Executor - Dwell-based trigger management and action execution.
 """
 
 import time
+import os
+from datetime import datetime
+from pathlib import Path
 from pycaw.pycaw import AudioUtilities
 
 import pyautogui
@@ -76,6 +79,9 @@ class ActionExecutor:
         self.volume_increment_percent = 5.0          # Volume change per increment (configurable)
         self.volume_smoothing_counter = 0            # Frames since initial trigger
         self.volume_smoothing_frames = 3             # Frames to wait before continuous increments start
+
+        # Screenshot settings
+        self.screenshot_save_dir = None              # Will be set from config
 
         # Drag control state
         self.drag_active = False
@@ -283,6 +289,8 @@ class ActionExecutor:
             self._execute_previous_track()
         elif action_name == "next_track":
             self._execute_next_track()
+        elif action_name == "screenshot":
+            self._execute_screenshot()
         # Add more action handlers here as needed
 
     def _execute_left_click(self):
@@ -305,6 +313,31 @@ class ActionExecutor:
         self.last_action = "RIGHT CLICK"
         self.action_display_frames = 30
         print(f"OK RIGHT CLICK executed (gesture triggered)")
+
+    def _execute_screenshot(self):
+        """
+        Capture screenshot and save to configured directory.
+
+        Saves with timestamp-based filename: screenshot_YYYYMMDD_HHMMSS.png
+        Creates directory if it doesn't exist.
+        """
+        # Ensure save directory exists
+        save_dir = Path(self.screenshot_save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate timestamp-based filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"screenshot_{timestamp}.png"
+        filepath = save_dir / filename
+
+        # Capture and save screenshot
+        screenshot = pyautogui.screenshot()
+        screenshot.save(str(filepath))
+
+        # UI feedback
+        self.last_action = f"SCREENSHOT: {filename}"
+        self.action_display_frames = 60  # Show for ~2 seconds
+        print(f"OK Screenshot saved: {filepath}")
 
     def _execute_scroll_up(self):
         """Scroll up by 100 units."""

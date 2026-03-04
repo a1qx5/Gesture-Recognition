@@ -47,6 +47,9 @@ class CompactModeWindow:
         self.settings_button_rect = (50, 50, 20, 20)
         self.settings_button_hovered = False
 
+        self.screenshot_folder_button_rect = (50, 50, 20, 20)
+        self.screenshot_folder_button_hovered = False
+
         self.recognizer = GestureRecognizer(
             model_path=config.MODEL_PATH,
             gesture_map_path=config.GESTURE_MAP_PATH,
@@ -62,6 +65,9 @@ class CompactModeWindow:
         self.action_executor.volume_increment_interval = config.VOLUME_INCREMENT_INTERVAL
         self.action_executor.volume_increment_percent = config.VOLUME_INCREMENT_PERCENT
         self.action_executor.volume_smoothing_frames = config.VOLUME_SMOOTHING_FRAMES
+
+        # Configure screenshot settings from config
+        self.action_executor.screenshot_save_dir = config.SCREENSHOT_SAVE_DIR
 
         # Configure close-app hold duration from config
         self.action_executor.close_app_hold_duration = config.CLOSE_APP_HOLD_DURATION
@@ -94,23 +100,33 @@ class CompactModeWindow:
 
     def _on_mouse_event(self, event, x, y, flags, param):
         """
-        Handle mouse events for settings button interaction.
+        Handle mouse events for settings button and screenshot folder button interaction.
         Args:
             event: OpenCV mouse event type
             x, y: Mouse coords
             flags: Additional flags
             param: Additional params
         """
+        # Check settings button
         btn_x, btn_y, btn_w, btn_h = self.settings_button_rect
+        inside_settings = (btn_x <= x <= btn_x + btn_w and
+                          btn_y <= y <= btn_y + btn_h)
+        self.settings_button_hovered = inside_settings
 
-        inside_button = (btn_x <= x <=btn_x + btn_w and
-                         btn_y <= y <= btn_y + btn_h)
+        # Check screenshot folder button
+        ss_btn_x, ss_btn_y, ss_btn_w, ss_btn_h = self.screenshot_folder_button_rect
+        inside_screenshot = (ss_btn_x <= x <= ss_btn_x + ss_btn_w and
+                           ss_btn_y <= y <= ss_btn_y + ss_btn_h)
+        self.screenshot_folder_button_hovered = inside_screenshot
 
-        self.settings_button_hovered = inside_button
-
-        if event == cv2.EVENT_LBUTTONDOWN and inside_button:
-            print("Settings button clicked")
-            self._open_display_settings()
+        # Handle clicks
+        if event == cv2.EVENT_LBUTTONDOWN:
+            if inside_settings:
+                print("Settings button clicked")
+                self._open_display_settings()
+            elif inside_screenshot:
+                print("Screenshot folder button clicked")
+                self._open_screenshot_folder()
 
     def run(self):
         """Main loop for compact mode."""
@@ -430,6 +446,7 @@ class CompactModeWindow:
         btn_x = width - 40
         btn_y = 10
 
+        # Settings button
         self.settings_button_rect = (btn_x, btn_y, btn_size, btn_size)
 
         center_x = btn_x + btn_size // 2
@@ -456,6 +473,35 @@ class CompactModeWindow:
             2
         )
 
+        # Screenshot folder button (to the left of settings button)
+        ss_btn_x = width - 80
+        ss_btn_y = 10
+
+        self.screenshot_folder_button_rect = (ss_btn_x, ss_btn_y, btn_size, btn_size)
+
+        ss_center_x = ss_btn_x + btn_size // 2
+        ss_center_y = ss_btn_y + btn_size // 2
+
+        if self.screenshot_folder_button_hovered:
+            ss_btn_color = (255, 255, 255)
+        else:
+            ss_btn_color = (200, 200, 200)
+
+        cv2.circle(frame, (ss_center_x, ss_center_y), radius, ss_btn_color, -1)
+
+        ss_text_x = ss_btn_x + 8
+        ss_text_y = ss_btn_y + 22
+
+        cv2.putText(
+            frame,
+            "F",
+            (ss_text_x, ss_text_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (60, 60, 60),
+            2
+        )
+
     def _open_display_settings(self):
         """
         Open windows display settings page.
@@ -465,6 +511,20 @@ class CompactModeWindow:
             print("Windows display settings opened")
         except Exception as e:
             print(f"Failed: {e}")
+
+    def _open_screenshot_folder(self):
+        """
+        Open the screenshot folder in Windows Explorer.
+        Creates the folder if it doesn't exist.
+        """
+        try:
+            from pathlib import Path
+            folder_path = Path(self.config.SCREENSHOT_SAVE_DIR)
+            folder_path.mkdir(parents=True, exist_ok=True)
+            subprocess.Popen(['explorer', str(folder_path)])
+            print(f"Screenshot folder opened: {folder_path}")
+        except Exception as e:
+            print(f"Failed to open screenshot folder: {e}")
 
     def _load_black_screen_setting(self):
         """
