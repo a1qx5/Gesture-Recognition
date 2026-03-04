@@ -85,6 +85,10 @@ class CompactModeWindow:
         self.current_gesture = "No hand detected"
         self.current_confidence = 0.0
 
+        # Black screen mode state
+        self.black_screen_enabled = False
+        self._load_black_screen_setting()
+
         # Window name
         self.window_name = "Compact Mode - Gesture Control"
 
@@ -146,8 +150,12 @@ class CompactModeWindow:
             # Flip for selfie view
             frame = cv2.flip(frame, 1)
 
-            # Detect hand
+            # Detect hand (on original frame before blackening)
             hand_landmarks = self.detector.detect_hand(frame)
+
+            # Replace with black frame if enabled (AFTER detection, BEFORE rendering)
+            if self.black_screen_enabled:
+                frame = np.zeros_like(frame)
 
             # Predict gesture
             if hand_landmarks:
@@ -195,6 +203,16 @@ class CompactModeWindow:
 
                     # Update minimize-app hold timer (called every frame)
                     self.action_executor.update_minimize_app()
+
+                    # Update swipe detection (called every frame when open_palm held)
+                    swipe_triggered = self.action_executor.update_swipe_detection(
+                        hand_landmarks=hand_landmarks,
+                        screen_width=self.screen_width
+                    )
+
+                    # Toggle black screen if swipe detected
+                    if swipe_triggered:
+                        self._toggle_black_screen()
                 else:
                     self.current_gesture = gesture  # "Invalid (scale too small)"
                     self.current_confidence = 0.0
@@ -447,6 +465,88 @@ class CompactModeWindow:
             print("Windows display settings opened")
         except Exception as e:
             print(f"Failed: {e}")
+
+    def _load_black_screen_setting(self):
+        """
+        Load black screen setting from persistent storage.
+
+        If file doesn't exist or is corrupted, defaults to False (black screen OFF).
+        """
+        import json
+        from pathlib import Path
+
+        settings_path = self.config.PROJECT_ROOT / "data" / "app_settings.json"
+
+        try:
+            if settings_path.exists():
+                with open(settings_path, 'r') as f:
+                    settings = json.load(f)
+                    self.black_screen_enabled = settings.get('black_screen_enabled', False)
+                    print(f"OK Black screen setting loaded: {self.black_screen_enabled}")
+            else:
+                # File doesn't exist - use default
+                self.black_screen_enabled = False
+                print("OK Black screen setting file not found - using default (OFF)")
+                # Create file with default settings
+                self._save_black_screen_setting()
+
+        except (json.JSONDecodeError, IOError) as e:
+            # Corrupted file - use default and log warning
+            print(f"WARNING: Failed to load black screen setting: {e}")
+            print("  Using default (OFF)")
+            self.black_screen_enabled = False
+            # Overwrite corrupted file with valid default
+            self._save_black_screen_setting()
+
+    def _save_black_screen_setting(self):
+        """
+        Save black screen setting to persistent storage.
+
+        Creates file if it doesn't exist. Handles write errors gracefully.
+        """
+        import json
+        from pathlib import Path
+
+        settings_path = self.config.PROJECT_ROOT / "data" / "app_settings.json"
+
+        try:
+            # Ensure data directory exists
+            settings_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Prepare settings data
+            settings = {
+                'black_screen_enabled': self.black_screen_enabled,
+                'version': '1.0'
+            }
+
+            # Write to file with pretty formatting
+            with open(settings_path, 'w') as f:
+                json.dump(settings, f, indent=2)
+
+            print(f"OK Black screen setting saved: {self.black_screen_enabled}")
+
+        except IOError as e:
+            print(f"WARNING: Failed to save black screen setting: {e}")
+            print("  Setting will not persist across sessions")
+
+    def _toggle_black_screen(self):
+        """
+        Toggle black screen mode and provide visual feedback.
+
+        Updates state, saves to persistent storage, and displays temporary message.
+        """
+        # Toggle state
+        self.black_screen_enabled = not self.black_screen_enabled
+
+        # Save to persistent storage
+        self._save_black_screen_setting()
+
+        # Trigger visual feedback via action executor
+        status = "ON" if self.black_screen_enabled else "OFF"
+        self.action_executor.last_action = f"Black Screen: {status}"
+        self.action_executor.action_display_frames = 45  # ~1.5 seconds at 30fps
+
+        print(f"OK Black screen toggled: {status}")
 
     def cleanup(self):
         """Release resources."""

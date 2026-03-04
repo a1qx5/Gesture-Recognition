@@ -107,6 +107,14 @@ class ActionExecutor:
         self.scroll_smoothing_counter = 0            # Frames since initial trigger
         self.scroll_smoothing_frames = 3             # Frames to wait before continuous increments start
 
+        # Swipe detection state (for black screen toggle)
+        self.swipe_active = False                    # Whether swipe detection is active
+        self.swipe_start_x = None                    # Starting X position of landmark 9 (normalized 0-1)
+        self.swipe_start_y = None                    # Starting Y position for vertical tolerance check
+        self.swipe_triggered = False                 # Debounce flag to prevent multiple triggers
+        self.swipe_threshold = 0.5                   # Horizontal movement threshold (50% of screen width)
+        self.swipe_vertical_tolerance = 0.1          # Max vertical movement to still count as horizontal swipe
+
         # Initialize pynput controllers
         if PYNPUT_AVAILABLE:
             self.mouse_controller = PynputMouseController()
@@ -191,7 +199,9 @@ class ActionExecutor:
                     return None
                 elif detected_gesture in self.gesture_actions and \
                      self.gesture_actions[detected_gesture] == 'close_app':
-                    # Activate close-app hold timer
+                    # Activate BOTH swipe detection and close-app hold timer
+                    # The first to complete wins and deactivates the other
+                    self._activate_swipe_detection(hand_landmarks)
                     self._activate_close_app()
                     return None
                 elif detected_gesture in self.gesture_actions and \
@@ -227,6 +237,10 @@ class ActionExecutor:
             # Deactivate minimize-app hold if active
             if self.minimize_app_active:
                 self._deactivate_minimize_app()
+
+            # Deactivate swipe detection if active
+            if self.swipe_active:
+                self._deactivate_swipe_detection()
 
             # Reset state
             self.current_gesture = detected_gesture
@@ -766,6 +780,22 @@ class ActionExecutor:
         self.scroll_last_increment_time = None
         self.scroll_smoothing_counter = 0
 
+    def _activate_swipe_detection(self, hand_landmarks):
+        """
+        Capture starting position of landmark 9 (middle finger MCP) for swipe detection.
+
+        Args:
+            hand_landmarks: MediaPipe hand landmarks
+        """
+        self.swipe_active = True
+        self.swipe_triggered = False
+
+        if hand_landmarks:
+            # Landmark 9 = middle finger MCP joint
+            self.swipe_start_x = hand_landmarks.landmark[9].x  # Normalized (0-1)
+            self.swipe_start_y = hand_landmarks.landmark[9].y
+            print(f"OK Swipe detection ACTIVATED (start X: {self.swipe_start_x:.3f}, Y: {self.swipe_start_y:.3f})")
+
     def _activate_close_app(self):
         """Start the close-app hold timer."""
         self.close_app_active = True
@@ -781,6 +811,16 @@ class ActionExecutor:
         self.close_app_active = False
         self.close_app_start_time = None
 
+    def _deactivate_swipe_detection(self):
+        """Reset swipe detection state."""
+        if self.swipe_active:
+            print("OK Swipe detection DEACTIVATED")
+
+        self.swipe_active = False
+        self.swipe_start_x = None
+        self.swipe_start_y = None
+        self.swipe_triggered = False
+
     def update_close_app(self):
         """
         Check hold duration and set should_close flag when threshold is met.
@@ -795,6 +835,7 @@ class ActionExecutor:
 
     def _execute_close_app(self):
         """Signal the application to close."""
+        self._deactivate_swipe_detection()  # Close-app won the race
         self.should_close = True
         self.close_app_active = False
         self.last_action = "CLOSING APP"
@@ -901,6 +942,51 @@ class ActionExecutor:
             # Update last increment timestamp
             self.scroll_last_increment_time = current_time
 
+    def update_swipe_detection(self, hand_landmarks, screen_width):
+        """
+        Check for horizontal swipe movement when open_palm is held.
+
+        Args:
+            hand_landmarks: Current hand landmarks
+            screen_width: Screen width in pixels (used for threshold calculation)
+
+        Returns:
+            bool: True if swipe threshold was met (triggers black screen toggle)
+        """
+        if not self.swipe_active or self.swipe_triggered or hand_landmarks is None:
+            return False
+
+        # Get current position of landmark 9 (middle finger MCP)
+        current_x = hand_landmarks.landmark[9].x
+        current_y = hand_landmarks.landmark[9].y
+
+        # Calculate horizontal and vertical movement (in normalized coords 0-1)
+        delta_x = abs(current_x - self.swipe_start_x)
+        delta_y = abs(current_y - self.swipe_start_y)
+
+        # Check if movement is primarily horizontal
+        if delta_y > self.swipe_vertical_tolerance:
+            # Too much vertical movement - not a horizontal swipe
+            # Reset start position to allow course correction
+            self.swipe_start_x = current_x
+            self.swipe_start_y = current_y
+            return False
+
+        # Check if horizontal movement exceeds threshold (50% of screen width)
+        if delta_x >= self.swipe_threshold:
+            # Swipe detected! Trigger black screen toggle
+            self.swipe_triggered = True
+            direction = "RIGHT" if current_x > self.swipe_start_x else "LEFT"
+            print(f"OK SWIPE {direction} DETECTED (delta X: {delta_x:.3f})")
+
+            # Deactivate close-app hold since swipe won the race
+            self._deactivate_close_app()
+            self._deactivate_swipe_detection()
+
+            return True  # Signal to toggle black screen
+
+        return False
+
     def _calculate_thumb_ring_distance(self, hand_landmarks):
         """
         Calculate normalized Euclidean distance between thumb tip and ring finger DIP joint.
@@ -978,6 +1064,10 @@ class ActionExecutor:
         # Minimize-app hold state
         if self.minimize_app_active:
             self._deactivate_minimize_app()
+
+        # Swipe detection state
+        if self.swipe_active:
+            self._deactivate_swipe_detection()
 
     def get_last_action(self):
         """Return the last executed action (for UI feedback)."""
