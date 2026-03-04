@@ -265,6 +265,10 @@ class ActionExecutor:
             self._execute_close_app()
         elif action_name == "toggle_pause_play":
             self._execute_toggle_pause_play()
+        elif action_name == "previous_track":
+            self._execute_previous_track()
+        elif action_name == "next_track":
+            self._execute_next_track()
         # Add more action handlers here as needed
 
     def _execute_left_click(self):
@@ -383,6 +387,54 @@ class ActionExecutor:
             self.action_display_frames = 30
 
             print("OK PAUSE/PLAY toggled (global media key)")
+
+        except Exception as e:
+            print(f"WARNING: Media key control error: {e}")
+
+    def _execute_previous_track(self):
+        """
+        Skip to previous track using Windows media key.
+
+        Sends VK_MEDIA_PREV_TRACK key code which works globally across all media applications.
+        """
+        if self.keyboard is None:
+            print("WARNING: Keyboard control not available - previous track disabled")
+            return
+
+        try:
+            # Send global media previous key
+            self.keyboard.press(Key.media_previous)
+            self.keyboard.release(Key.media_previous)
+
+            # Update UI feedback
+            self.last_action = "PREVIOUS TRACK"
+            self.action_display_frames = 30
+
+            print("OK PREVIOUS TRACK (global media key)")
+
+        except Exception as e:
+            print(f"WARNING: Media key control error: {e}")
+
+    def _execute_next_track(self):
+        """
+        Skip to next track using Windows media key.
+
+        Sends VK_MEDIA_NEXT_TRACK key code which works globally across all media applications.
+        """
+        if self.keyboard is None:
+            print("WARNING: Keyboard control not available - next track disabled")
+            return
+
+        try:
+            # Send global media next key
+            self.keyboard.press(Key.media_next)
+            self.keyboard.release(Key.media_next)
+
+            # Update UI feedback
+            self.last_action = "NEXT TRACK"
+            self.action_display_frames = 30
+
+            print("OK NEXT TRACK (global media key)")
 
         except Exception as e:
             print(f"WARNING: Media key control error: {e}")

@@ -75,6 +75,8 @@ class AppConfig:
         "index_middle": "drag_control",  # Drag-and-drop control
         "open_palm": "close_app",        # Hold 5s to close application
         "ok": "toggle_pause_play",       # Toggle global pause/play (media key)
+        "thumb_left": "previous_track",  # Skip to previous track (media key)
+        "thumb_right": "next_track",     # Skip to next track (media key)
     })
 
     # ========== UI Colors (BGR format for OpenCV) ==========
