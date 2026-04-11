@@ -60,7 +60,7 @@ def plot_feature_importance(model, save_path):
     
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    print(f"✓ Feature importance plot saved to: {save_path}")
+    print(f"OK Feature importance plot saved to: {save_path}")
     plt.close()
     
     # Print landmark names for reference
@@ -115,7 +115,7 @@ def analyze_data_distribution():
     plt.tight_layout()
     save_path = project_root / "models" / "data_distribution.png"
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    print(f"✓ Data distribution plot saved to: {save_path}")
+    print(f"OK Data distribution plot saved to: {save_path}")
     plt.close()
 
 
@@ -131,7 +131,7 @@ def main():
     # Load Random Forest model
     print("\n1. Loading Random Forest model...")
     rf_model = load_model(models_dir / "gesture_classifier_latest.pkl")
-    print("   ✓ Model loaded")
+    print("   OK Model loaded")
     
     # Plot feature importance
     print("\n2. Generating feature importance plot...")

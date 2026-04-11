@@ -3,3 +3,4 @@ __pycache__/
 DATA_FORMAT_DOCUMENTATION.md
 .claude/
 docs/
+venv/

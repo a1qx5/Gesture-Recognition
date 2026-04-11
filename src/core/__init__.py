@@ -1,0 +1,1 @@
+"""Core gesture recognition components."""

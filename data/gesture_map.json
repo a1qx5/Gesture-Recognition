@@ -4,5 +4,12 @@
   "2": "fist",
   "3": "open_palm",
   "4": "point",
-  "5": "thumbs_up"
+  "5": "thumbs_up_sideways",
+  "6": "thumbs_down_sideways",
+  "7": "index_middle",
+  "8": "thumbs_up",
+  "9": "thumbs_down",
+  "10": "ok",
+  "11": "thumb_left",
+  "12": "thumb_right"
 }
