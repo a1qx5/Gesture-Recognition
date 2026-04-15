@@ -122,7 +122,7 @@ class MenuWindow:
     def launch_testing_mode(self):
         """Launch testing mode (full display, no actions)."""
         print("Launching Testing Mode...")
-        self.root.destroy()  # Close menu
+        self.root.withdraw()  # Hide menu (don't destroy)
 
         # Import here to avoid circular dependency
         from src.ui.testing_mode_window import TestingModeWindow
@@ -131,10 +131,14 @@ class MenuWindow:
         testing_window = TestingModeWindow(self.config)
         testing_window.run()
 
+        # Mode exited, show menu again
+        self.root.deiconify()
+        print("Returned to menu")
+
     def launch_compact_mode(self):
         """Launch compact mode (small window, with actions)."""
         print("Launching Compact Mode...")
-        self.root.destroy()  # Close menu
+        self.root.withdraw()  # Hide menu (don't destroy)
 
         # Import here to avoid circular dependency
         from src.ui.compact_mode_window import CompactModeWindow
@@ -142,6 +146,10 @@ class MenuWindow:
         # Create and run compact mode
         compact_window = CompactModeWindow(self.config)
         compact_window.run()
+
+        # Mode exited, show menu again
+        self.root.deiconify()
+        print("Returned to menu")
 
     def quit_application(self):
         """Exit the application."""
