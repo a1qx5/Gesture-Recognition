@@ -63,7 +63,7 @@ class AppConfig:
 
     # ========== Window Sizes ==========
     TESTING_MODE_SIZE: tuple = (1280, 720)    # Large window for testing
-    COMPACT_MODE_SIZE: tuple = (320, 240)     # Small window for compact mode
+    COMPACT_MODE_SIZE: tuple = (426, 240)     # Small window for compact mode
 
     # ========== Gesture-to-Action Mappings ==========
     GESTURE_ACTIONS: dict = field(default_factory=lambda: {
