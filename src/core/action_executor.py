@@ -64,11 +64,17 @@ class ActionExecutor:
         self.last_thumb_ring_distance = None      # Previous frame's distance
         self.proximity_click_triggered = False     # Debounce flag
         self.proximity_threshold = 0.1            # Normalized distance threshold (tune this)
+        self.click_proximity_active = False       # Whether currently in proximity zone
+        self.click_dwell_frames = 0               # Frames proximity has been held
+        self.click_dwell_met = False              # Whether dwell requirement was met
 
         # Proximity-based double-click state (for double-click-during-point)
         self.last_pinky_ring_distance = None       # Previous frame's distance
         self.proximity_double_click_triggered = False  # Debounce flag
         self.proximity_double_click_threshold = 0.08   # Normalized distance threshold
+        self.double_click_proximity_active = False  # Whether currently in proximity zone
+        self.double_click_dwell_frames = 0          # Frames proximity has been held
+        self.double_click_dwell_met = False         # Whether dwell requirement was met
 
         # Volume control state (for continuous timed increments)
         self.volume_interface = None
@@ -170,6 +176,17 @@ class ActionExecutor:
             self.current_gesture = None
             self.frame_count = 0
             self.triggered_this_gesture = False
+
+            # Reset click/double-click proximity state
+            self.click_proximity_active = False
+            self.click_dwell_frames = 0
+            self.click_dwell_met = False
+            self.proximity_click_triggered = False
+            self.double_click_proximity_active = False
+            self.double_click_dwell_frames = 0
+            self.double_click_dwell_met = False
+            self.proximity_double_click_triggered = False
+
             if self.close_app_active:
                 self._deactivate_close_app()
             if self.minimize_app_active:
@@ -529,10 +546,16 @@ class ActionExecutor:
         # Reset proximity click state
         self.last_thumb_ring_distance = None
         self.proximity_click_triggered = False
+        self.click_proximity_active = False
+        self.click_dwell_frames = 0
+        self.click_dwell_met = False
 
         # Reset proximity double-click state
         self.last_pinky_ring_distance = None
         self.proximity_double_click_triggered = False
+        self.double_click_proximity_active = False
+        self.double_click_dwell_frames = 0
+        self.double_click_dwell_met = False
 
         print(f"OK Cursor control ACTIVATED")
         print(f"  Origin cursor: ({current_x}, {current_y})")
@@ -618,45 +641,89 @@ class ActionExecutor:
         self.last_cursor_x = smoothed_x
         self.last_cursor_y = smoothed_y
 
-        # Check for proximity-based click trigger
+        # Check for proximity-based click trigger with dwell mechanism
         current_distance = self._calculate_thumb_ring_distance(hand_landmarks)
 
-        # Detect threshold crossing (AWAY from ring finger = click)
-        if self.last_thumb_ring_distance is not None:
-            # Click on proximity EXIT: distance was below threshold, now above
-            if (self.last_thumb_ring_distance < self.proximity_threshold and
-                current_distance >= self.proximity_threshold and
-                not self.proximity_click_triggered):
+        # Check if currently in proximity zone
+        if current_distance < self.proximity_threshold:
+            # Entering or staying in proximity zone
+            if not self.click_proximity_active:
+                # Just entered proximity - start dwell timer
+                self.click_proximity_active = True
+                self.click_dwell_frames = 0
+                self.click_dwell_met = False
+                print(f"OK Click proximity ENTERED (distance: {current_distance:.3f})")
+            else:
+                # Already in proximity - increment dwell counter
+                self.click_dwell_frames += 1
 
-                # Trigger click
-                self._execute_left_click()
-                self.proximity_click_triggered = True
-                print(f"OK PROXIMITY CLICK (distance: {self.last_thumb_ring_distance:.3f} -> {current_distance:.3f})")
+                # Check if dwell requirement is met
+                if self.click_dwell_frames >= self.min_dwell_frames and not self.click_dwell_met:
+                    self.click_dwell_met = True
+                    print(f"OK Click dwell MET ({self.click_dwell_frames} frames)")
+        else:
+            # Exiting or staying outside proximity zone
+            if self.click_proximity_active:
+                # Just exited proximity
+                if self.click_dwell_met and not self.proximity_click_triggered:
+                    # Dwell was met - trigger click
+                    self._execute_left_click()
+                    self.proximity_click_triggered = True
+                    print(f"OK PROXIMITY CLICK (dwell met, distance: {current_distance:.3f})")
+                else:
+                    # Dwell not met - cancel click
+                    print(f"OK Click CANCELLED (released too early, dwell: {self.click_dwell_frames}/{self.min_dwell_frames})")
 
-            # Reset debounce when thumb returns close to ring finger
-            elif current_distance < self.proximity_threshold:
+                # Reset proximity state
+                self.click_proximity_active = False
+                self.click_dwell_frames = 0
+                self.click_dwell_met = False
+            else:
+                # Outside proximity and was already outside - reset debounce flag
                 self.proximity_click_triggered = False
 
         # Update distance for next frame
         self.last_thumb_ring_distance = current_distance
 
-        # Check for proximity-based double-click trigger (pinky-ring)
+        # Check for proximity-based double-click trigger with dwell mechanism (pinky-ring)
         current_double_click_distance = self._calculate_pinky_ring_distance(hand_landmarks)
 
-        # Detect threshold crossing (AWAY from ring finger = double-click)
-        if self.last_pinky_ring_distance is not None:
-            # Double-click on proximity EXIT: distance was below threshold, now above
-            if (self.last_pinky_ring_distance < self.proximity_double_click_threshold and
-                current_double_click_distance >= self.proximity_double_click_threshold and
-                not self.proximity_double_click_triggered):
+        # Check if currently in proximity zone
+        if current_double_click_distance < self.proximity_double_click_threshold:
+            # Entering or staying in proximity zone
+            if not self.double_click_proximity_active:
+                # Just entered proximity - start dwell timer
+                self.double_click_proximity_active = True
+                self.double_click_dwell_frames = 0
+                self.double_click_dwell_met = False
+                print(f"OK Double-click proximity ENTERED (distance: {current_double_click_distance:.3f})")
+            else:
+                # Already in proximity - increment dwell counter
+                self.double_click_dwell_frames += 1
 
-                # Trigger double-click
-                self._execute_double_click()
-                self.proximity_double_click_triggered = True
-                print(f"OK PROXIMITY DOUBLE-CLICK (distance: {self.last_pinky_ring_distance:.3f} -> {current_double_click_distance:.3f})")
+                # Check if dwell requirement is met
+                if self.double_click_dwell_frames >= self.min_dwell_frames and not self.double_click_dwell_met:
+                    self.double_click_dwell_met = True
+                    print(f"OK Double-click dwell MET ({self.double_click_dwell_frames} frames)")
+        else:
+            # Exiting or staying outside proximity zone
+            if self.double_click_proximity_active:
+                # Just exited proximity
+                if self.double_click_dwell_met and not self.proximity_double_click_triggered:
+                    # Dwell was met - trigger double-click
+                    self._execute_double_click()
+                    self.proximity_double_click_triggered = True
+                    print(f"OK PROXIMITY DOUBLE-CLICK (dwell met, distance: {current_double_click_distance:.3f})")
+                else:
+                    # Dwell not met - cancel double-click
+                    print(f"OK Double-click CANCELLED (released too early, dwell: {self.double_click_dwell_frames}/{self.min_dwell_frames})")
 
-            # Reset debounce when pinky returns close to ring finger
-            elif current_double_click_distance < self.proximity_double_click_threshold:
+                # Reset proximity state
+                self.double_click_proximity_active = False
+                self.double_click_dwell_frames = 0
+                self.double_click_dwell_met = False
+            else:
+                # Outside proximity and was already outside - reset debounce flag
                 self.proximity_double_click_triggered = False
 
         # Update distance for next frame
@@ -716,10 +783,16 @@ class ActionExecutor:
         # Reset proximity click state
         self.last_thumb_ring_distance = None
         self.proximity_click_triggered = False
+        self.click_proximity_active = False
+        self.click_dwell_frames = 0
+        self.click_dwell_met = False
 
         # Reset proximity double-click state
         self.last_pinky_ring_distance = None
         self.proximity_double_click_triggered = False
+        self.double_click_proximity_active = False
+        self.double_click_dwell_frames = 0
+        self.double_click_dwell_met = False
 
     def _deactivate_drag_control(self):
         """Release mouse button and reset drag state."""
