@@ -6,6 +6,7 @@ import time
 import cv2
 import numpy as np
 import pyautogui
+pyautogui.PAUSE = 0
 
 from src.core.gesture_detector import GestureDetector
 from src.core.gesture_recognizer import GestureRecognizer
@@ -76,6 +77,10 @@ class CompactModeWindow:
         self.action_executor.minimize_app_hold_duration = config.MINIMIZE_APP_HOLD_DURATION
 
         self.fps_counter = FPSCounter()
+
+        # Volume cache state (avoid COM call every frame)
+        self._cached_volume = None
+        self._frame_index = 0
 
         # Get screen size for cursor control
         self.screen_width, self.screen_height = pyautogui.size()
@@ -157,6 +162,8 @@ class CompactModeWindow:
             print("⚠ Warning: Always-on-top not supported on this platform")
 
         while True:
+            frame_start = time.perf_counter()
+
             # Capture frame
             ret, frame = self.cap.read()
             if not ret:
@@ -166,8 +173,10 @@ class CompactModeWindow:
             # Flip for selfie view
             frame = cv2.flip(frame, 1)
 
-            # Detect hand (on original frame before blackening)
-            hand_landmarks = self.detector.detect_hand(frame)
+            # Detect hand on downsampled frame — landmarks are normalized (0-1) so
+            # they map correctly back onto the full-resolution display frame.
+            detect_frame = cv2.resize(frame, (640, 360))
+            hand_landmarks = self.detector.detect_hand(detect_frame)
 
             # Replace with black frame if enabled (AFTER detection, BEFORE rendering)
             if self.black_screen_enabled:
@@ -242,23 +251,29 @@ class CompactModeWindow:
             # Update FPS
             self.fps_counter.update()
 
-            # Render UI
-            self._render_frame(frame, hand_landmarks)
+            # Refresh cached volume every 12 frames (~8x/sec at 90fps)
+            self._frame_index += 1
+            if self._frame_index % 12 == 0:
+                self._cached_volume = self.action_executor.get_current_volume_percent()
 
             # Check if window is minimized
             visible = cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE)
 
-            # Display frame (only if window is visible)
+            # Subtract time already spent this frame so the wait doesn't stack on top of processing
+            frame_budget_ms = int(1000 / self.config.PROCESSING_FPS_LIMIT)
+            elapsed_ms = int((time.perf_counter() - frame_start) * 1000)
+            wait_time = max(1, frame_budget_ms - elapsed_ms)
+
             if visible > 0:
+                # Render and display only when visible — skip drawing overhead when minimized
+                self._render_frame(frame, hand_landmarks)
                 cv2.imshow(self.window_name, frame)
-            # Note: Detection and action execution continue even when minimized!
-
-            # Handle keyboard input (with FPS limiting)
-            wait_time = max(1, int(1000 / self.config.PROCESSING_FPS_LIMIT))
-            key = cv2.waitKey(wait_time) & 0xFF
-
-            if key == ord('q') or key == 27:  # Q or ESC
-                break
+                key = cv2.waitKey(wait_time) & 0xFF
+                if key == ord('q') or key == 27:  # Q or ESC
+                    break
+            else:
+                # Window is minimized — gesture recognition continues but rendering is skipped
+                cv2.waitKey(wait_time)
 
             if self.action_executor.should_close:
                 break
@@ -407,7 +422,7 @@ class CompactModeWindow:
 
         # Show current volume when volume control active
         if self.action_executor.volume_control_active:
-            current_volume = self.action_executor.get_current_volume_percent()
+            current_volume = self._cached_volume
             if current_volume is not None:
                 # Determine color based on volume level
                 if current_volume > 75:
@@ -430,7 +445,7 @@ class CompactModeWindow:
                 )
 
         # Display general volume level (always visible, not just during control)
-        current_volume = self.action_executor.get_current_volume_percent()
+        current_volume = self._cached_volume
         if current_volume is not None:
             cv2.putText(
                 frame,

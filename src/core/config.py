@@ -34,7 +34,7 @@ class AppConfig:
     CAMERA_INDEX: int = 1
     CAMERA_WIDTH: int = 1280
     CAMERA_HEIGHT: int = 720
-    CAMERA_FPS: int = 90
+    CAMERA_FPS: int = 30
 
     # ========== MediaPipe Settings ==========
     MIN_DETECTION_CONFIDENCE: float = 0.7
@@ -59,7 +59,7 @@ class AppConfig:
     VOLUME_SMOOTHING_FRAMES: int = 3             # Frames before continuous increments start
 
     # ========== Performance Settings ==========
-    PROCESSING_FPS_LIMIT: int = 90            # Maximum processing FPS (should match CAMERA_FPS)
+    PROCESSING_FPS_LIMIT: int = 30            # Maximum processing FPS (should match CAMERA_FPS)
 
     # ========== Window Sizes ==========
     TESTING_MODE_SIZE: tuple = (1280, 720)    # Large window for testing
