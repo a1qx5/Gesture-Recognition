@@ -641,90 +641,50 @@ class ActionExecutor:
         self.last_cursor_x = smoothed_x
         self.last_cursor_y = smoothed_y
 
-        # Check for proximity-based click trigger with dwell mechanism
+        # Check for proximity-based click trigger with extension-dwell mechanism
         current_distance = self._calculate_thumb_ring_distance(hand_landmarks)
 
-        # Check if currently in proximity zone
         if current_distance < self.proximity_threshold:
-            # Entering or staying in proximity zone
+            # Fingers close — mark intent, reset extension dwell
             if not self.click_proximity_active:
-                # Just entered proximity - start dwell timer
                 self.click_proximity_active = True
-                self.click_dwell_frames = 0
-                self.click_dwell_met = False
                 print(f"OK Click proximity ENTERED (distance: {current_distance:.3f})")
-            else:
-                # Already in proximity - increment dwell counter
-                self.click_dwell_frames += 1
-
-                # Check if dwell requirement is met
-                if self.click_dwell_frames >= self.min_dwell_frames and not self.click_dwell_met:
-                    self.click_dwell_met = True
-                    print(f"OK Click dwell MET ({self.click_dwell_frames} frames)")
+            self.click_dwell_frames = 0
+            self.proximity_click_triggered = False
         else:
-            # Exiting or staying outside proximity zone
+            # Fingers extended — count extension dwell if proximity was entered
             if self.click_proximity_active:
-                # Just exited proximity
-                if self.click_dwell_met and not self.proximity_click_triggered:
-                    # Dwell was met - trigger click
+                self.click_dwell_frames += 1
+                if self.click_dwell_frames >= self.min_dwell_frames and not self.proximity_click_triggered:
                     self._execute_left_click()
                     self.proximity_click_triggered = True
-                    print(f"OK PROXIMITY CLICK (dwell met, distance: {current_distance:.3f})")
-                else:
-                    # Dwell not met - cancel click
-                    print(f"OK Click CANCELLED (released too early, dwell: {self.click_dwell_frames}/{self.min_dwell_frames})")
-
-                # Reset proximity state
-                self.click_proximity_active = False
-                self.click_dwell_frames = 0
-                self.click_dwell_met = False
-            else:
-                # Outside proximity and was already outside - reset debounce flag
-                self.proximity_click_triggered = False
+                    self.click_proximity_active = False
+                    self.click_dwell_frames = 0
+                    print(f"OK PROXIMITY CLICK (extension dwell met)")
 
         # Update distance for next frame
         self.last_thumb_ring_distance = current_distance
 
-        # Check for proximity-based double-click trigger with dwell mechanism (pinky-ring)
+        # Check for proximity-based double-click trigger with extension-dwell mechanism (pinky-ring)
         current_double_click_distance = self._calculate_pinky_ring_distance(hand_landmarks)
 
-        # Check if currently in proximity zone
         if current_double_click_distance < self.proximity_double_click_threshold:
-            # Entering or staying in proximity zone
+            # Fingers close — mark intent, reset extension dwell
             if not self.double_click_proximity_active:
-                # Just entered proximity - start dwell timer
                 self.double_click_proximity_active = True
-                self.double_click_dwell_frames = 0
-                self.double_click_dwell_met = False
                 print(f"OK Double-click proximity ENTERED (distance: {current_double_click_distance:.3f})")
-            else:
-                # Already in proximity - increment dwell counter
-                self.double_click_dwell_frames += 1
-
-                # Check if dwell requirement is met
-                if self.double_click_dwell_frames >= self.min_dwell_frames and not self.double_click_dwell_met:
-                    self.double_click_dwell_met = True
-                    print(f"OK Double-click dwell MET ({self.double_click_dwell_frames} frames)")
+            self.double_click_dwell_frames = 0
+            self.proximity_double_click_triggered = False
         else:
-            # Exiting or staying outside proximity zone
+            # Fingers extended — count extension dwell if proximity was entered
             if self.double_click_proximity_active:
-                # Just exited proximity
-                if self.double_click_dwell_met and not self.proximity_double_click_triggered:
-                    # Dwell was met - trigger double-click
+                self.double_click_dwell_frames += 1
+                if self.double_click_dwell_frames >= self.min_dwell_frames and not self.proximity_double_click_triggered:
                     self._execute_double_click()
                     self.proximity_double_click_triggered = True
-                    print(f"OK PROXIMITY DOUBLE-CLICK (dwell met, distance: {current_double_click_distance:.3f})")
-                else:
-                    # Dwell not met - cancel double-click
-                    print(f"OK Double-click CANCELLED (released too early, dwell: {self.double_click_dwell_frames}/{self.min_dwell_frames})")
-
-                # Reset proximity state
-                self.double_click_proximity_active = False
-                self.double_click_dwell_frames = 0
-                self.double_click_dwell_met = False
-            else:
-                # Outside proximity and was already outside - reset debounce flag
-                self.proximity_double_click_triggered = False
+                    self.double_click_proximity_active = False
+                    self.double_click_dwell_frames = 0
+                    print(f"OK PROXIMITY DOUBLE-CLICK (extension dwell met)")
 
         # Update distance for next frame
         self.last_pinky_ring_distance = current_double_click_distance
