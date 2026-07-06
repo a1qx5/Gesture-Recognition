@@ -286,21 +286,7 @@ class ActionExecutor:
             return  # No action mapped for this gesture
 
         # Execute corresponding action
-        if action_name == "left_click":
-            self._execute_left_click()
-        elif action_name == "right_click":
-            self._execute_right_click()
-        elif action_name == "scroll_up":
-            self._execute_scroll_up()
-        elif action_name == "scroll_down":
-            self._execute_scroll_down()
-        elif action_name == "volume_up":
-            self._execute_volume_up()
-        elif action_name == "volume_down":
-            self._execute_volume_down()
-        elif action_name == "close_app":
-            self._execute_close_app()
-        elif action_name == "toggle_pause_play":
+        if action_name == "toggle_pause_play":
             self._execute_toggle_pause_play()
         elif action_name == "previous_track":
             self._execute_previous_track()
@@ -323,13 +309,6 @@ class ActionExecutor:
         self.last_action = "DOUBLE CLICK"
         self.action_display_frames = 30  # Show feedback for ~1 second
         print(f"OK DOUBLE CLICK executed (proximity triggered)")
-
-    def _execute_right_click(self):
-        """Execute right mouse click at current cursor position."""
-        pyautogui.click(button='right')
-        self.last_action = "RIGHT CLICK"
-        self.action_display_frames = 30
-        print(f"OK RIGHT CLICK executed (gesture triggered)")
 
     def _execute_screenshot(self):
         """

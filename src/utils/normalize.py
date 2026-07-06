@@ -122,20 +122,3 @@ def normalize_landmarks(
         'scale_used': scale_used,
         'valid': True
     }
-
-
-def get_average_confidence(hand_landmarks) -> float:
-    """
-    Compute average confidence score across all landmarks.
-    
-    Args:
-        hand_landmarks: MediaPipe hand landmarks object
-        
-    Returns:
-        float: Average confidence score (0-1)
-    """
-    confidences = []
-    for landmark in hand_landmarks.landmark:
-        # placeholder
-        confidences.append(1.0)
-    return np.mean(confidences)
